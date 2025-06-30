@@ -18,11 +18,18 @@ def query_image(prompt: str, n: int = 1, size: str = "1024x1024") -> list:
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY environment variable not set")
 
-    openai.api_key = api_key
-
-    response = openai.Image.create(prompt=prompt, n=n, size=size)
-    return [data["url"] for data in response["data"]]
-
+    if hasattr(openai, "OpenAI"):
+        client = openai.OpenAI(api_key=api_key)
+        # Prefer the newer API if available
+        try:
+            response = client.images.generate(prompt=prompt, n=n, size=size)
+        except AttributeError:
+            response = client.images.create(prompt=prompt, n=n, size=size)
+        return [image.url for image in response.data]
+    else:
+        openai.api_key = api_key
+        response = openai.Image.create(prompt=prompt, n=n, size=size)
+        return [data["url"] for data in response["data"]]
 
 def main(argv=None):
     argv = argv or sys.argv[1:]
