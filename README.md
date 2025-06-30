@@ -2,10 +2,11 @@
 
 Citizen Drone Defense Force
 
-This repository includes a simple script to query the OpenAI API for image
-generation. The script `image_query.py` sends a prompt to the API and prints
-URLs for generated images. It supports the OpenAI Python library version 1.x
-while falling back to the older interface if needed.
+
+This repository includes small utilities that interact with the OpenAI API.
+The script `image_query.py` sends a text prompt to the API and prints URLs for
+generated images. The newer script `drone_description.py` accepts an image and
+returns a description of the type of drone shown.
 
 ## Setup
 
@@ -28,3 +29,9 @@ images.
 
 The script automatically detects whether the newer `openai.OpenAI` client is
 available and uses it when possible.
+
+To identify the type of drone in an image run:
+
+```bash
+python drone_description.py path/to/drone_image.jpg
+```

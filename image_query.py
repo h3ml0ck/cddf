@@ -31,7 +31,6 @@ def query_image(prompt: str, n: int = 1, size: str = "1024x1024") -> list:
         response = openai.Image.create(prompt=prompt, n=n, size=size)
         return [data["url"] for data in response["data"]]
 
-
 def main(argv=None):
     argv = argv or sys.argv[1:]
     if not argv:
