@@ -35,3 +35,9 @@ To identify the type of drone in an image run:
 ```bash
 python drone_description.py path/to/drone_image.jpg
 ```
+
+To detect drone sounds in an audio recording run:
+
+```bash
+python drone_audio_detection.py path/to/recording.wav
+```
