@@ -51,3 +51,15 @@ python drone_audio_monitor.py --device 0
 
 Specify the appropriate `--device` index or name for your hardware. Use
 `--help` to see additional options for tuning the detection algorithm.
+
+To scan for potential drone RF signals that are not broadcasting a remote ID
+beacon using a HackRF One, run:
+
+```bash
+python drone_rf_detection.py
+```
+
+Use `--freq` options to specify control channel frequencies to monitor and
+`--remote-id-freq` to list expected remote ID beacon channels. The script will
+report when strong RF activity is detected on a control channel without a
+corresponding remote ID signal.
