@@ -41,3 +41,13 @@ To detect drone sounds in an audio recording run:
 ```bash
 python drone_audio_detection.py path/to/recording.wav
 ```
+
+To monitor a microphone in real time (e.g., a ReSpeaker array on a Raspberry
+Pi) and report when a drone-like sound is heard, run:
+
+```bash
+python drone_audio_monitor.py --device 0
+```
+
+Specify the appropriate `--device` index or name for your hardware. Use
+`--help` to see additional options for tuning the detection algorithm.
