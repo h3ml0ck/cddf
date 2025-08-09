@@ -63,3 +63,12 @@ Use `--freq` options to specify control channel frequencies to monitor and
 `--remote-id-freq` to list expected remote ID beacon channels. The script will
 report when strong RF activity is detected on a control channel without a
 corresponding remote ID signal.
+
+To detect drone RF signals using an RTL-SDR dongle via `rtl_power`, run:
+
+```bash
+python drone_rtl_power_detection.py --range 2400M:2483M:1M
+```
+
+Adjust `--range` to scan other frequency spans and use `--threshold` to set the
+power level required for detection.
