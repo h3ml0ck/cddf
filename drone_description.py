@@ -23,7 +23,7 @@ def describe_drone(image_path: str, prompt: str = "What type of drone is in this
 
     client = openai.OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model="gpt-4-vision-preview",
+        model="gpt-4o-mini", 
         messages=[
             {
                 "role": "user",
