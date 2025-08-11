@@ -8,7 +8,7 @@ import numpy as np
 
 try:
     from hackrf import HackRf
-except Exception:  # pragma: no cover - library may not be installed during tests
+except ImportError:  # pragma: no cover - library may not be installed during tests
     HackRf = None  # type: ignore
 
 

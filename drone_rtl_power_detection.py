@@ -49,8 +49,8 @@ def detect_rtl_power(
     """
     cmd = ["rtl_power", "-f", freq_range, "-i", str(integration), "-1"]
     try:
-        res = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except Exception as exc:  # pragma: no cover - depends on external tool
+        res = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=10)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:  # pragma: no cover - depends on external tool
         raise RuntimeError(f"rtl_power execution failed: {exc}") from exc
     return _parse_rtl_power_output(res.stdout, threshold_db)
 

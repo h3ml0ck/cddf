@@ -35,27 +35,31 @@ def read_rtl_power_csv(path: str) -> Tuple[np.ndarray, List[str], np.ndarray]:
     times: List[str] = []
     powers: List[List[float]] = []
     freqs: np.ndarray | None = None
-    with open(path, "r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split(",")
-            if len(parts) < 7:
-                continue
-            date, tstamp = parts[0], parts[1]
-            start_freq = float(parts[2])
-            step_hz = float(parts[4])
-            db_vals: List[float] = []
-            for val in parts[6:]:
-                try:
-                    db_vals.append(float(val))
-                except ValueError:
-                    db_vals.append(float("nan"))
-            if freqs is None:
-                freqs = start_freq + step_hz * np.arange(len(db_vals))
-            powers.append(db_vals)
-            times.append(f"{date} {tstamp}")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split(",")
+                if len(parts) < 7:
+                    continue
+                date, tstamp = parts[0], parts[1]
+                start_freq = float(parts[2])
+                step_hz = float(parts[4])
+                db_vals: List[float] = []
+                for val in parts[6:]:
+                    try:
+                        db_vals.append(float(val))
+                    except ValueError:
+                        db_vals.append(float("nan"))
+                if freqs is None:
+                    freqs = start_freq + step_hz * np.arange(len(db_vals))
+                powers.append(db_vals)
+                times.append(f"{date} {tstamp}")
+    except (IOError, OSError) as exc:
+        raise RuntimeError(f"Failed to read file {path}: {exc}") from exc
+    
     if freqs is None:
         return np.array([]), [], np.array([])
     return freqs, times, np.array(powers)
