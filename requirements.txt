@@ -5,3 +5,4 @@ soundfile
 sounddevice
 pyhackrf
 matplotlib
+scapy

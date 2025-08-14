@@ -18,6 +18,7 @@ This repository contains a comprehensive suite of drone detection and analysis u
 ### RF Signal Detection
 - **`drone_rf_detection.py`** - Detects drone RF control signals without remote ID beacons using HackRF One hardware
 - **`drone_rtl_power_detection.py`** - Scans for drone RF activity using RTL-SDR dongles and the `rtl_power` utility
+- **`drone_wifi_remote_id.py`** - Captures drone Remote ID information broadcast over WiFi according to ASTM F3411 standard
 
 ### Visualization & Analysis
 - **`rtl_power_visualization.py`** - Creates frequency spectrum heatmaps from RTL-SDR data for visual analysis
@@ -39,7 +40,12 @@ This repository contains a comprehensive suite of drone detection and analysis u
    - **RTL-SDR dongle**: For `drone_rtl_power_detection.py` and visualization tools
    - Install `rtl_power` utility for RTL-SDR functionality
 
-4. For audio monitoring, ensure your microphone/audio device is properly configured
+4. For WiFi Remote ID capture:
+   - **WiFi adapter with monitor mode support**: For `drone_wifi_remote_id.py`
+   - Install `scapy` package (included in requirements.txt)
+   - May require root/administrator privileges for packet capture
+
+5. For audio monitoring, ensure your microphone/audio device is properly configured
 
 ## Usage
 
@@ -79,6 +85,16 @@ Detect drone RF activity using RTL-SDR:
 python drone_rtl_power_detection.py --range 2400M:2483M:1M --threshold -30
 ```
 
+Capture drone Remote ID broadcasts over WiFi:
+```bash
+python drone_wifi_remote_id.py wlan0
+```
+
+For WiFi adapters with filter issues:
+```bash
+python drone_wifi_remote_id.py wlan0 --no-filter
+```
+
 ### Visualization
 
 Create frequency spectrum heatmaps from RTL-SDR data:
@@ -90,6 +106,7 @@ python rtl_power_visualization.py rtl_power_data.csv -o spectrum_plot.png
 
 - **Audio Detection**: Focuses on 100-700Hz frequency band typical of drone motor/rotor sounds
 - **RF Detection**: Monitors common drone control frequencies (2.4GHz, 5.8GHz) and remote ID beacons
+- **WiFi Remote ID**: Captures ASTM F3411 compliant broadcasts containing drone identification, location, and operator data
 - **Thresholds**: Adjustable sensitivity levels for each detection method
 
 Use `--help` with any script to see all available options and parameters.
