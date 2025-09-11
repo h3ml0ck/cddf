@@ -56,6 +56,82 @@ echo 'blacklist rtl2830' | sudo tee -a /etc/modprobe.d/blacklist-rtl.conf
 echo "Adding user to dialout group..."
 sudo usermod -a -G dialout $USER
 
+# Install Kismet for wireless monitoring and BLE Remote ID detection
+echo "Installing Kismet wireless monitoring..."
+# Add Kismet repository key and source
+wget -O - https://www.kismetwireless.net/repos/kismet-release.gpg.key | sudo apt-key add -
+echo 'deb https://www.kismetwireless.net/repos/apt/release/jammy jammy main' | sudo tee /etc/apt/sources.list.d/kismet.list
+
+# Update package list and install Kismet
+sudo apt update
+sudo apt install -y kismet
+
+# Add user to kismet group
+sudo usermod -a -G kismet $USER
+
+# Configure Kismet for edge node operation
+echo "Configuring Kismet..."
+sudo mkdir -p /etc/kismet/conf.d
+
+# Create CDDF-specific Kismet configuration
+sudo tee /etc/kismet/conf.d/cddf-edge.conf > /dev/null <<EOF
+# CDDF Edge Node Kismet Configuration
+
+# Enable external data sources for Sniffle integration
+helper_binary_path=/usr/local/bin:/usr/bin:/bin
+alloweduser=kismet
+alloweduser=$USER
+
+# Remote capture configuration for BLE Remote ID
+remote_capture_listen=127.0.0.1
+remote_capture_port=3501
+
+# Logging configuration for drone detection
+log_types=kismet,pcapng,alert
+log_template=/var/log/kismet/kismet-%n-%d-%t-%i.%l
+log_prefix=/var/log/kismet/
+
+# Enable REST API for CDDF integration
+httpd_bind_address=127.0.0.1
+httpd_port=2501
+httpd_user_dir=/tmp/kismet_httpd/
+httpd_session_db=/tmp/kismet_session.db
+
+# Memory and performance tuning for edge deployment
+tracker_device_timeout=300
+tracker_max_devices=1000
+
+# Alert configuration for drone detection
+alert=DRONEDETECTED,5/min,Remote ID drone detected
+alert=DRONELOCATION,1/min,Drone location broadcast detected
+alert=DRONEAUDIO,10/min,Audio-based drone detection
+alert=DRONERF,10/min,RF-based drone detection
+
+# Database logging
+db_log_devices=true
+db_log_alerts=true
+db_file=/var/log/kismet/kismet.db
+EOF
+
+# Create Kismet log directory
+sudo mkdir -p /var/log/kismet
+sudo chown kismet:kismet /var/log/kismet
+
+# Create Kismet systemd service override for edge node
+sudo mkdir -p /etc/systemd/system/kismet.service.d
+sudo tee /etc/systemd/system/kismet.service.d/cddf-override.conf > /dev/null <<EOF
+[Service]
+# Restart on failure for edge node reliability
+Restart=always
+RestartSec=30
+
+# Environment for CDDF integration
+Environment=KISMET_CONFIG_DIR=/etc/kismet/conf.d
+
+# Run with lower priority to not interfere with real-time detection
+Nice=10
+EOF
+
 # Create Python virtual environment
 echo "Creating Python virtual environment..."
 python3 -m venv ~/cddf-env
@@ -73,7 +149,9 @@ pip install \
     sounddevice \
     pyhackrf \
     matplotlib \
-    scapy
+    scapy \
+    requests \
+    bleak
 
 # Configure audio system
 echo "Configuring audio system..."
@@ -147,6 +225,12 @@ echo "  python drone_rtl_power_detection.py --range 2400M:2483M:1M"
 echo "  python drone_description.py image.jpg"
 echo "  python image_query.py 'drone description'"
 echo "  python rtl_power_visualization.py rtl_power_output.csv"
+echo ""
+echo "Kismet wireless monitoring:"
+echo "  sudo systemctl start kismet    # Start Kismet server"
+echo "  sudo systemctl status kismet   # Check Kismet status"
+echo "  # Web interface: http://localhost:2501"
+echo "  # Logs: /var/log/kismet/"
 EOF
 chmod +x ~/activate_cddf.sh
 
@@ -161,11 +245,21 @@ echo "3. Copy ~/cddf/.env.template to ~/cddf/.env and add your OpenAI API key"
 echo "4. Test audio devices: python -m sounddevice"
 echo "5. Test RTL-SDR: rtl_test"
 echo "6. Test HackRF: hackrf_info"
+echo "7. Start Kismet: sudo systemctl start kismet"
+echo "8. Access Kismet web interface: http://localhost:2501"
 echo ""
 echo "Hardware notes:"
 echo "- RTL-SDR dongles should be accessible after reboot"
 echo "- HackRF One should be detected automatically"
 echo "- Audio input devices configured for drone monitoring"
+echo "- Kismet configured for wireless monitoring and BLE Remote ID detection"
+echo ""
+echo "Monitoring capabilities:"
+echo "- Audio-based drone detection (100-700Hz analysis)"
+echo "- RF signal detection (HackRF/RTL-SDR)"
+echo "- WiFi/Bluetooth device monitoring (Kismet)"
+echo "- Remote ID beacon detection (BLE via Sniffle integration)"
+echo "- Centralized logging and web-based analysis"
 echo ""
 echo "To start monitoring: ./activate_cddf.sh"
 echo "==================================================================================="
