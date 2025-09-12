@@ -18,9 +18,9 @@ import sounddevice as sd
 
 try:
     # Optional speed-up
-    import scipy.fft as sfft  # type: ignore[attr-defined]
-except Exception:  # pragma: no cover - optional dependency
-    sfft = None  # type: ignore[assignment]
+    import scipy.fft as sfft
+except Exception:  # optional dependency
+    sfft = None
 
 
 def _nearest_pow2(n: int) -> int:
