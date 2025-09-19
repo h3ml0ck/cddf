@@ -40,7 +40,26 @@ sudo apt install -y \
     pulseaudio \
     alsa-utils \
     wget \
-    curl
+    curl \
+    libnl-3-dev \
+    libnl-genl-3-dev \
+    libcap-dev \
+    libpcap-dev \
+    libnm-dev \
+    libdw-dev \
+    libsqlite3-dev \
+    libprotobuf-dev \
+    libprotobuf-c-dev \
+    protobuf-compiler \
+    protobuf-c-compiler \
+    libsensors4-dev \
+    libusb-1.0-0-dev \
+    python3-setuptools \
+    python3-protobuf \
+    librtlsdr-dev \
+    libbtbb-dev \
+    libbluetooth-dev \
+    ubertooth
 
 # Install RTL-SDR tools
 echo "Installing RTL-SDR utilities..."
@@ -56,18 +75,38 @@ echo 'blacklist rtl2830' | sudo tee -a /etc/modprobe.d/blacklist-rtl.conf
 echo "Adding user to dialout group..."
 sudo usermod -a -G dialout $USER
 
-# Install Kismet for wireless monitoring and BLE Remote ID detection
-echo "Installing Kismet wireless monitoring..."
-# Add Kismet repository key and source
-wget -O - https://www.kismetwireless.net/repos/kismet-release.gpg.key | sudo apt-key add -
-echo 'deb https://www.kismetwireless.net/repos/apt/release/jammy jammy main' | sudo tee /etc/apt/sources.list.d/kismet.list
+# Build and install Kismet from source (nightly build)
+echo "Building Kismet from source (nightly build)..."
+cd /tmp
+echo "Downloading Kismet nightly source..."
+wget -O kismet-master.tar.gz https://github.com/kismetwireless/kismet/archive/master.tar.gz
+tar -xzf kismet-master.tar.gz
+cd kismet-master
 
-# Update package list and install Kismet
-sudo apt update
-sudo apt install -y kismet
+echo "Configuring Kismet build..."
+./configure --prefix=/usr/local --sysconfdir=/etc/kismet --localstatedir=/var
+
+echo "Building Kismet (this may take a while)..."
+make -j$(nproc)
+
+echo "Installing Kismet..."
+sudo make install
+
+# Install systemd service
+sudo cp packaging/systemd/kismet.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Create kismet user and group (if not exists)
+sudo groupadd -f kismet
+sudo useradd -r -g kismet -s /bin/false -d /nonexistent kismet 2>/dev/null || true
 
 # Add user to kismet group
 sudo usermod -a -G kismet $USER
+
+# Set proper permissions for Kismet
+sudo chown kismet:kismet /usr/local/bin/kismet*
+sudo chmod u+s /usr/local/bin/kismet_cap_linux_wifi
+sudo chmod u+s /usr/local/bin/kismet_cap_linux_bluetooth
 
 # Configure Kismet for edge node operation
 echo "Configuring Kismet..."
