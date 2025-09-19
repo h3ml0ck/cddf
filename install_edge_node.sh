@@ -96,9 +96,13 @@ sudo make install
 sudo cp packaging/systemd/kismet.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
-# Create kismet user and group (if not exists)
-sudo groupadd -f kismet
-sudo useradd -r -g kismet -s /bin/false -d /nonexistent kismet 2>/dev/null || true
+# Create a system group and user
+sudo groupadd --system kismet
+sudo useradd  --system --gid kismet --home /var/lib/kismet --shell /usr/sbin/nologin kismet
+
+# Create common dirs (some may already exist)
+sudo mkdir -p /var/lib/kismet /var/log/kismet /var/run/kismet
+sudo chown -R kismet:kismet /var/lib/kismet /var/log/kismet /var/run/kismet
 
 # Add user to kismet group
 sudo usermod -a -G kismet $USER
