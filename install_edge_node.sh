@@ -59,6 +59,11 @@ sudo apt install -y \
     librtlsdr-dev \
     libbtbb-dev \
     libbluetooth-dev \
+    libssl-dev \
+    libwebsockets-dev \
+    mosquitto \
+    libmosquitto1 \
+    libmosquitto-dev \
     ubertooth
 
 # Install RTL-SDR tools
@@ -74,6 +79,13 @@ echo 'blacklist rtl2830' | sudo tee -a /etc/modprobe.d/blacklist-rtl.conf
 # Add user to dialout group for hardware access
 echo "Adding user to dialout group..."
 sudo usermod -a -G dialout $USER
+
+# Create a system group and user
+sudo groupadd --system kismet
+sudo useradd  --system --gid kismet --home /var/lib/kismet --shell /usr/sbin/nologin kismet
+
+# Add user to kismet group
+sudo usermod -a -G kismet $USER
 
 # Build and install Kismet from source (nightly build)
 echo "Building Kismet from source (nightly build)..."
@@ -96,16 +108,9 @@ sudo make install
 sudo cp packaging/systemd/kismet.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
-# Create a system group and user
-sudo groupadd --system kismet
-sudo useradd  --system --gid kismet --home /var/lib/kismet --shell /usr/sbin/nologin kismet
-
 # Create common dirs (some may already exist)
 sudo mkdir -p /var/lib/kismet /var/log/kismet /var/run/kismet
 sudo chown -R kismet:kismet /var/lib/kismet /var/log/kismet /var/run/kismet
-
-# Add user to kismet group
-sudo usermod -a -G kismet $USER
 
 # Set proper permissions for Kismet
 sudo chown kismet:kismet /usr/local/bin/kismet*
