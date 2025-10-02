@@ -19,6 +19,7 @@ This repository contains a comprehensive suite of drone detection and analysis u
 - **`drone_rf_detection.py`** - Detects drone RF control signals without remote ID beacons using HackRF One hardware
 - **`drone_rtl_power_detection.py`** - Scans for drone RF activity using RTL-SDR dongles and the `rtl_power` utility
 - **`drone_wifi_remote_id.py`** - Captures drone Remote ID information broadcast over WiFi according to ASTM F3411 standard
+- **`mock_sniffle_remote_id.py`** - Mock Sniffle BLE sniffer for Remote ID simulation, generates realistic ASTM F3411 Remote ID packets for testing and development without requiring actual hardware
 
 ### Visualization & Analysis
 - **`rtl_power_visualization.py`** - Creates frequency spectrum heatmaps from RTL-SDR data for visual analysis
@@ -93,6 +94,13 @@ python drone_wifi_remote_id.py wlan0
 For WiFi adapters with filter issues:
 ```bash
 python drone_wifi_remote_id.py wlan0 --no-filter
+```
+
+Simulate Remote ID broadcasts for testing (mock Sniffle output):
+```bash
+python mock_sniffle_remote_id.py            # Run indefinitely
+python mock_sniffle_remote_id.py -t 30      # Run for 30 seconds
+python mock_sniffle_remote_id.py -v         # Verbose output with decoded packets
 ```
 
 ### Visualization
