@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "citizen-drone-defense-force"
+version = "0.1.0"
+description = "Drone audio/RF/Wi-Fi/vision utilities"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "soundfile",
+  "matplotlib",
+  "scapy>=2.5.0",
+  "requests"
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "types-requests", "types-setuptools"]
+
+# Console commands (optional; remove if you don’t want these)
+[project.scripts]
+drone-image-query = "drone_tools.image_query:main"
+drone-describe-image = "drone_tools.drone_description:main"
+drone-audio-detect = "drone_tools.drone_audio_detection:main"
+drone-audio-monitor = "drone_tools.drone_audio_monitor:main"
+drone-rf-detect = "drone_tools.drone_rf_detection:main"
+drone-rtl-power-detect = "drone_tools.drone_rtl_power_detection:main"
+drone-wifi-remote-id = "drone_tools.drone_wifi_remote_id:main"
+drone-rtl-power-visualize = "drone_tools.rtl_power_visualization:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["drone_tools*"]

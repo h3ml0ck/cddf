@@ -14,7 +14,11 @@ import time
 from typing import Tuple
 
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+except Exception as e:
+    sd = None
 
 try:
     # Optional speed-up
