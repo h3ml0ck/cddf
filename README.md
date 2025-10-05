@@ -54,60 +54,78 @@ This repository contains a comprehensive suite of drone detection and analysis u
 
 Generate drone-related images from text prompts:
 ```bash
-python image_query.py "a futuristic drone flying over a city"
+python -m drone_tools.image_query "a futuristic drone flying over a city"
 ```
 
 Analyze and identify drone types in images:
 ```bash
-python drone_description.py path/to/drone_image.jpg
+python -m drone_tools.drone_description path/to/drone_image.jpg
 ```
 
 ### Audio Detection
 
 Detect drone sounds in audio files:
 ```bash
-python drone_audio_detection.py path/to/recording.wav --low 100 --high 700 --threshold 0.2
+python -m drone_tools.drone_audio_detection path/to/recording.wav --low 100 --high 700 --threshold 0.2
 ```
 
 Monitor microphone in real-time for drone sounds:
 ```bash
-python drone_audio_monitor.py --device 0 --samplerate 16000
+python -m drone_tools.drone_audio_monitor --device 0 --samplerate 16000
 ```
 
 ### RF Signal Detection
 
 Scan for drone control signals without remote ID using HackRF One:
 ```bash
-python drone_rf_detection.py --freq 2.4e9 --freq 5.8e9 --remote-id-freq 2.433e9
+python -m drone_tools.drone_rf_detection --freq 2.4e9 --freq 5.8e9 --remote-id-freq 2.433e9
 ```
 
 Detect drone RF activity using RTL-SDR:
 ```bash
-python drone_rtl_power_detection.py --range 2400M:2483M:1M --threshold -30
+python -m drone_tools.drone_rtl_power_detection --range 2400M:2483M:1M --threshold -30
 ```
 
 Capture drone Remote ID broadcasts over WiFi:
 ```bash
-python drone_wifi_remote_id.py wlan0
+python -m drone_tools.drone_wifi_remote_id wlan0
 ```
 
 For WiFi adapters with filter issues:
 ```bash
-python drone_wifi_remote_id.py wlan0 --no-filter
+python -m drone_tools.drone_wifi_remote_id wlan0 --no-filter
 ```
 
 Simulate Remote ID broadcasts for testing (mock Sniffle output):
 ```bash
-python mock_sniffle_remote_id.py            # Run indefinitely
-python mock_sniffle_remote_id.py -t 30      # Run for 30 seconds
-python mock_sniffle_remote_id.py -v         # Verbose output with decoded packets
+python -m drone_tools.mock_sniffle_remote_id            # Run indefinitely
+python -m drone_tools.mock_sniffle_remote_id -t 30      # Run for 30 seconds
+python -m drone_tools.mock_sniffle_remote_id -v         # Verbose output with decoded packets
 ```
 
 ### Visualization
 
 Create frequency spectrum heatmaps from RTL-SDR data:
 ```bash
-python rtl_power_visualization.py rtl_power_data.csv -o spectrum_plot.png
+python -m drone_tools.rtl_power_visualization rtl_power_data.csv -o spectrum_plot.png
+```
+
+#### Additionally you can run
+```bash
+pip install -e .
+```
+And you will be able to run the commands directly after installing them.
+```bash
+#Examples Below:
+
+drone-image-query "a futuristic drone flying over a city"
+drone-describe-image path/to/drone_image.jpg
+drone-audio-detect path/to/recording.wav --low 100 --high 700 --threshold 0.2
+drone-audio-monitor --device 0 --samplerate 16000
+drone-rf-detect --freq 2.4G --freq 5.8G --remote-id-freq 2.433G
+drone-rtl-power-detect ...
+drone-wifi-remote-id wlan0
+drone-rtl-power-visualize rtl_power_data.csv -o spectrum_plot.png
 ```
 
 ## Detection Parameters

@@ -7,11 +7,12 @@ from typing import Iterable, List, Optional
 
 import numpy as np
 
+
+# Library may not be installed during tests
 try:
     from hackrf import HackRf
-except ImportError:  # Library may not be installed during tests
-    HackRf = None  
-
+except Exception:
+    HackRf = None
 
 # -----------------------------
 # CLI/UX helpers
