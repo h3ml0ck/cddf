@@ -64,7 +64,9 @@ sudo apt install -y \
     mosquitto \
     libmosquitto1 \
     libmosquitto-dev \
-    ubertooth
+    ubertooth \
+    libudev-dev \
+    libdbus-1-dev
 
 # Install RTL-SDR tools
 echo "Installing RTL-SDR utilities..."
@@ -199,7 +201,9 @@ pip install \
     matplotlib \
     scapy \
     requests \
-    bleak
+    bleak \
+    pynrfjprog \
+    nrfutil
 
 # Configure audio system
 echo "Configuring audio system..."
@@ -232,6 +236,16 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", GROUP="dial
 # HackRF devices
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6089", GROUP="dialout", MODE="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="60a1", GROUP="dialout", MODE="0666"
+
+# Nordic nRF52 devices
+# nRF52840 DK
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="1015", GROUP="dialout", MODE="0666"
+# nRF52840 Dongle
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1915", ATTRS{idProduct}=="521f", GROUP="dialout", MODE="0666"
+# nRF52832 DK
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="1052", GROUP="dialout", MODE="0666"
+# Generic SEGGER J-Link (used by Nordic DKs)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="0105", GROUP="dialout", MODE="0666"
 
 # Audio devices
 SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
@@ -279,6 +293,12 @@ echo "  sudo systemctl start kismet    # Start Kismet server"
 echo "  sudo systemctl status kismet   # Check Kismet status"
 echo "  # Web interface: http://localhost:2501"
 echo "  # Logs: /var/log/kismet/"
+echo ""
+echo "nRF52 BLE Remote ID monitoring:"
+echo "  nrfjprog --ids                 # List connected nRF devices"
+echo "  nrfjprog --deviceinfo          # Check nRF device info"
+echo "  ls -la /dev/tty* | grep ACM    # Find nRF serial port"
+echo "  # See howto/nrf-drone-remote-id-setup.md for setup instructions"
 EOF
 chmod +x ~/activate_cddf.sh
 
@@ -293,20 +313,23 @@ echo "3. Copy ~/cddf/.env.template to ~/cddf/.env and add your OpenAI API key"
 echo "4. Test audio devices: python -m sounddevice"
 echo "5. Test RTL-SDR: rtl_test"
 echo "6. Test HackRF: hackrf_info"
-echo "7. Start Kismet: sudo systemctl start kismet"
-echo "8. Access Kismet web interface: http://localhost:2501"
+echo "7. Test nRF devices: nrfjprog --ids"
+echo "8. Start Kismet: sudo systemctl start kismet"
+echo "9. Access Kismet web interface: http://localhost:2501"
 echo ""
 echo "Hardware notes:"
 echo "- RTL-SDR dongles should be accessible after reboot"
 echo "- HackRF One should be detected automatically"
 echo "- Audio input devices configured for drone monitoring"
 echo "- Kismet configured for wireless monitoring and BLE Remote ID detection"
+echo "- nRF52 devices (DK/Dongle) ready for BLE Remote ID scanning"
 echo ""
 echo "Monitoring capabilities:"
 echo "- Audio-based drone detection (100-700Hz analysis)"
 echo "- RF signal detection (HackRF/RTL-SDR)"
 echo "- WiFi/Bluetooth device monitoring (Kismet)"
 echo "- Remote ID beacon detection (BLE via Sniffle integration)"
+echo "- nRF52-based BLE Remote ID scanning"
 echo "- Centralized logging and web-based analysis"
 echo ""
 echo "To start monitoring: ./activate_cddf.sh"
