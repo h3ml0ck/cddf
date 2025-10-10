@@ -1,0 +1,394 @@
+# cddf_watchtower.yml — CDDF Watchtower Edge Node Provisioning (APT-based Kismet)
+# Runs on Raspberry Pi OS (Debian Bullseye/Bookworm/Trixie) and similar Debian-family hosts
+# Usage examples:
+#   ansible-playbook cddf_watchtower.yml -i "watchtower-a.local," -u pi --become --ask-become-pass
+#   ansible-playbook cddf_watchtower.yml -i inventory.ini --limit cddf-watchtower-a --become
+
+- name: CDDF Watchtower Edge Node Provisioning
+  hosts: all
+  gather_facts: yes
+  become: true
+
+  vars:
+    # Install target user and paths
+    ansible_user: "pi"
+    ansible_python_interpreter: "/usr/bin/python3"
+    cddf_user: "{{ ansible_user }}"
+    cddf_home: "/home/{{ cddf_user }}"
+    cddf_venv: "{{ cddf_home }}/cddf-env"
+    cddf_repo: "{{ cddf_home }}/cddf"
+
+    kismet_service: kismet
+    kismet_log_dir: /var/log/kismet
+    kismet_conf_dir: /etc/kismet/conf.d
+    kismet_state_dirs:
+      - /var/lib/kismet
+      - /var/run/kismet
+      - "{{ kismet_log_dir }}"
+
+    # Python packages for edge tooling
+    cddf_pip_packages:
+      - "openai>=1.0.0"
+      - numpy
+      - soundfile
+      - sounddevice
+      - pyhackrf
+      - matplotlib
+      - scapy
+      - requests
+      - bleak
+
+    # Kernel module blacklist lines for RTL-SDR
+    rtl_blacklist_lines:
+      - "blacklist dvb_usb_rtl28xxu"
+      - "blacklist rtl2832"
+      - "blacklist rtl2830"
+
+    # System packages
+    apt_packages:
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-setuptools
+      - python3-protobuf
+      - git
+      - build-essential
+      - cmake
+      - pkg-config
+      - libasound2-dev
+      - libportaudio2
+      - libportaudiocpp0
+      - portaudio19-dev
+      - libfftw3-dev
+      - libusb-1.0-0-dev
+      - rtl-sdr
+      - librtlsdr-dev
+      - hackrf
+      - libhackrf-dev
+      - pulseaudio
+      - alsa-utils
+      - wget
+      - curl
+      - libnl-3-dev
+      - libnl-genl-3-dev
+      - libcap-dev
+      - libpcap-dev
+      - libnm-dev
+      - libdw-dev
+      - libsqlite3-dev
+      - libprotobuf-dev
+      - libprotobuf-c-dev
+      - protobuf-compiler
+      - protobuf-c-compiler
+      - libsensors-dev
+      - libbtbb-dev
+      - libbluetooth-dev
+      - libssl-dev
+      - libwebsockets-dev
+      - mosquitto
+      - libmosquitto1
+      - libmosquitto-dev
+      - ubertooth
+
+  handlers:
+    - name: systemd daemon-reload
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: restart kismet
+      ansible.builtin.systemd:
+        name: "{{ kismet_service }}"
+        state: restarted
+        enabled: true
+
+    - name: trigger udev
+      ansible.builtin.command: udevadm trigger
+
+  tasks:
+    # Core updates & base deps
+    - name: Update & upgrade APT packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+
+    - name: Install base system dependencies
+      ansible.builtin.apt:
+        name: "{{ apt_packages }}"
+        state: present
+
+    # Accounts & permissions
+    - name: Ensure kismet system group exists
+      ansible.builtin.group:
+        name: kismet
+        system: true
+
+    - name: Ensure kismet system user exists
+      ansible.builtin.user:
+        name: kismet
+        group: kismet
+        home: /var/lib/kismet
+        shell: /usr/sbin/nologin
+        system: true
+        create_home: true
+
+    - name: Add {{ cddf_user }} to dialout/audio/kismet
+      ansible.builtin.user:
+        name: "{{ cddf_user }}"
+        append: true
+        groups: "dialout,audio,kismet"
+
+    - name: Blacklist kernel modules interfering with RTL-SDR
+      ansible.builtin.blockinfile:
+        path: /etc/modprobe.d/blacklist-rtl.conf
+        create: true
+        block: |
+          {% for line in rtl_blacklist_lines %}
+          {{ line }}
+          {% endfor %}
+
+    # Kismet official APT repository (codename-aware, signed-by)
+    - name: Ensure repo prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - gnupg
+          - wget
+          - lsb-release
+        state: present
+        update_cache: true
+
+    - name: Set Debian codename with fallback
+      ansible.builtin.set_fact:
+        deb_codename: "{{ ansible_facts.lsb.codename | default('bookworm') }}"
+
+    - name: Install Kismet repo keyring
+      ansible.builtin.get_url:
+        url: https://www.kismetwireless.net/repos/kismet-release.gpg.key
+        dest: /usr/share/keyrings/kismet-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Add Kismet APT repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/kismet-archive-keyring.gpg] https://www.kismetwireless.net/repos/apt/release/{{ deb_codename }} {{ deb_codename }} main"
+        filename: kismet
+        state: present
+        update_cache: true
+
+    - name: Install Kismet from APT (server + capture helpers)
+      ansible.builtin.apt:
+        name:
+          - kismet
+          - kismet-capture-linux-wifi
+          - kismet-capture-linux-bluetooth
+        state: present
+        update_cache: true
+
+    # Directories, config, and service overrides
+    - name: Ensure Kismet state/log dirs exist and owned by kismet
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: kismet
+        group: kismet
+        mode: "0755"
+      loop: "{{ kismet_state_dirs }}"
+
+    - name: Ensure Kismet conf.d exists
+      ansible.builtin.file:
+        path: "{{ kismet_conf_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Drop CDDF Kismet config
+      ansible.builtin.copy:
+        dest: "{{ kismet_conf_dir }}/cddf-edge.conf"
+        mode: "0644"
+        content: |
+          # CDDF Edge Node Kismet Configuration
+          # Prefer packaged binary locations first
+          helper_binary_path=/usr/bin:/usr/local/bin:/bin
+          alloweduser=kismet
+          alloweduser={{ cddf_user }}
+
+          # Remote capture configuration (BLE Remote ID, etc.)
+          remote_capture_listen=127.0.0.1
+          remote_capture_port=3501
+
+          # Logging configuration for drone detection
+          log_types=kismet,pcapng,alert
+          log_template={{ kismet_log_dir }}/kismet-%n-%d-%t-%i.%l
+          log_prefix={{ kismet_log_dir }}/
+
+          # REST API / Web UI
+          httpd_bind_address=127.0.0.1
+          httpd_port=2501
+          httpd_user_dir=/tmp/kismet_httpd/
+          httpd_session_db=/tmp/kismet_session.db
+
+          # Memory and performance tuning
+          tracker_device_timeout=300
+          tracker_max_devices=1000
+
+          # Alerts (example placeholders)
+          alert=DRONEDETECTED,5/min,Remote ID drone detected
+          alert=DRONELOCATION,1/min,Drone location broadcast detected
+          alert=DRONEAUDIO,10/min,Audio-based drone detection
+          alert=DRONERF,10/min,RF-based drone detection
+
+          # Database logging
+          db_log_devices=true
+          db_log_alerts=true
+          db_file={{ kismet_log_dir }}/kismet.db
+      notify: restart kismet
+
+    - name: Service override dir
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ kismet_service }}.service.d"
+        state: directory
+        mode: "0755"
+
+    - name: Kismet service override for edge reliability
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ kismet_service }}.service.d/cddf-override.conf"
+        mode: "0644"
+        content: |
+          [Service]
+          Restart=always
+          RestartSec=30
+          Environment=KISMET_CONFIG_DIR={{ kismet_conf_dir }}
+          Nice=10
+      notify:
+        - systemd daemon-reload
+        - restart kismet
+
+    - name: Enable Kismet service (don’t start yet)
+      ansible.builtin.systemd:
+        name: "{{ kismet_service }}"
+        enabled: true
+
+    # Audio + udev device access
+    - name: Drop audio-setup oneshot for relaxed /dev/snd perms
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/cddf-audio-setup.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=CDDF Audio Setup
+          After=sound.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/bash -c 'chmod 666 /dev/snd/* || true'
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: systemd daemon-reload
+
+    - name: Enable cddf-audio-setup
+      ansible.builtin.systemd:
+        name: cddf-audio-setup.service
+        enabled: true
+
+    - name: Drop udev rules for hardware access
+      ansible.builtin.copy:
+        dest: /etc/udev/rules.d/99-cddf-hardware.rules
+        mode: "0644"
+        content: |
+          # RTL-SDR devices
+          SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2832", GROUP="dialout", MODE="0666"
+          SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", GROUP="dialout", MODE="0666"
+
+          # HackRF devices
+          SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6089", GROUP="dialout", MODE="0666"
+          SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="60a1", GROUP="dialout", MODE="0666"
+
+          # Audio devices
+          SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
+      notify: trigger udev
+
+    # CDDF repo + Python environment
+    - name: Check if CDDF repo already exists
+      ansible.builtin.stat:
+        path: "{{ cddf_repo }}/"
+      register: cddf_repo_folder
+
+    - name: Clone CDDF repo (first time only)
+      ansible.builtin.git:
+        repo: "https://github.com/h3ml0ck/cddf.git"
+        dest: "{{ cddf_repo }}"
+        version: "HEAD"
+        update: no
+      when: not cddf_repo_folder.stat.exists
+      become: false
+
+
+    - name: Create Python venv
+      ansible.builtin.command:
+        cmd: "python3 -m venv {{ cddf_venv }}"
+        creates: "{{ cddf_venv }}/bin/activate"
+      become_user: "{{ cddf_user }}"
+
+    - name: Upgrade pip in venv
+      ansible.builtin.pip:
+        name: pip
+        state: latest
+        virtualenv: "{{ cddf_venv }}"
+      become_user: "{{ cddf_user }}"
+
+    - name: Install Python deps in venv
+      ansible.builtin.pip:
+        name: "{{ cddf_pip_packages }}"
+        virtualenv: "{{ cddf_venv }}"
+      become_user: "{{ cddf_user }}"
+
+    - name: Ensure CDDF .env template exists
+      ansible.builtin.copy:
+        dest: "{{ cddf_repo }}/.env.template"
+        owner: "{{ cddf_user }}"
+        group: "{{ cddf_user }}"
+        mode: "0644"
+        content: |
+          # OpenAI API Key for image generation and analysis
+          OPENAI_API_KEY=your_openai_api_key_here
+
+          # Audio device configuration (use 'python -m sounddevice' to list devices)
+          AUDIO_DEVICE_ID=0
+
+          # RF configuration
+          RTL_SDR_DEVICE_INDEX=0
+          HACKRF_DEVICE_INDEX=0
+
+    - name: Create activation helper script
+      ansible.builtin.copy:
+        dest: "{{ cddf_home }}/activate_cddf.sh"
+        owner: "{{ cddf_user }}"
+        group: "{{ cddf_user }}"
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          source "{{ cddf_venv }}/bin/activate"
+          cd "{{ cddf_repo }}"
+          echo "CDDF environment activated. Available tools:"
+          echo "  python drone_audio_monitor.py --device 0"
+          echo "  python drone_rf_detection.py"
+          echo "  python drone_rtl_power_detection.py --range 2400M:2483M:1M"
+          echo "  python drone_description.py image.jpg"
+          echo "  python image_query.py 'drone description'"
+          echo "  python rtl_power_visualization.py rtl_power_output.csv"
+          echo ""
+          echo "Kismet wireless monitoring:"
+          echo "  sudo systemctl start kismet    # Start Kismet server"
+          echo "  sudo systemctl status kismet   # Check Kismet status"
+          echo "  # Web interface: http://localhost:2501"
+          echo "  # Logs: {{ kismet_log_dir }}"
+
+    # Optional: start Kismet at the end of the run
+    - name: Start Kismet now (optional)
+      ansible.builtin.systemd:
+        name: "{{ kismet_service }}"
+        state: started
+        enabled: true
+
