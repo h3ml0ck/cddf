@@ -52,7 +52,6 @@ sudo apt install -y \
     libprotobuf-c-dev \
     protobuf-compiler \
     protobuf-c-compiler \
-    libsensors4-dev \
     libusb-1.0-0-dev \
     python3-setuptools \
     python3-protobuf \
@@ -82,42 +81,43 @@ echo 'blacklist rtl2830' | sudo tee -a /etc/modprobe.d/blacklist-rtl.conf
 echo "Adding user to dialout group..."
 sudo usermod -a -G dialout $USER
 
-# Create a system group and user
-sudo groupadd --system kismet
-sudo useradd  --system --gid kismet --home /var/lib/kismet --shell /usr/sbin/nologin kismet
+# Create a system group and user (if they don't exist)
+if ! getent group kismet > /dev/null 2>&1; then
+    sudo groupadd --system kismet
+fi
+
+if ! id -u kismet > /dev/null 2>&1; then
+    sudo useradd --system --gid kismet --home /var/lib/kismet --shell /usr/sbin/nologin kismet
+fi
 
 # Add user to kismet group
 sudo usermod -a -G kismet $USER
 
-# Build and install Kismet from source (nightly build)
-echo "Building Kismet from source (nightly build)..."
-cd /tmp
-echo "Downloading Kismet nightly source..."
-wget -O kismet-master.tar.gz https://github.com/kismetwireless/kismet/archive/master.tar.gz
-tar -xzf kismet-master.tar.gz
-cd kismet-master
+# Install Kismet from nightly build packages
+echo "Installing Kismet from nightly build packages..."
 
-echo "Configuring Kismet build..."
-./configure --prefix=/usr/local --sysconfdir=/etc/kismet --localstatedir=/var
+# Add Kismet repository using modern method
+echo "Adding Kismet repository..."
+wget -O - https://www.kismetwireless.net/repos/kismet-release.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/kismet-archive-keyring.gpg
+# Using bookworm repository as it's compatible with trixie and trixie-specific repo doesn't exist yet
+echo 'deb [signed-by=/usr/share/keyrings/kismet-archive-keyring.gpg] https://www.kismetwireless.net/repos/apt/release/trixie trixie main' | sudo tee /etc/apt/sources.list.d/kismet.list
 
-echo "Building Kismet (this may take a while)..."
-make -j$(nproc)
+# Update package list and install Kismet
+echo "Installing Kismet package..."
+sudo apt update
+# Install kismet-core and essential capture tools, excluding problematic drone ID plugins with libwebsockets17 dependency
+sudo apt install -y kismet-core kismet-capture-linux-bluetooth kismet-capture-linux-wifi kismet-capture-nrf-51822 kismet-capture-nrf-52840 kismet-capture-nrf-mousejack kismet-capture-nxp-kw41z kismet-capture-rz-killerbee kismet-capture-ti-cc-2531 kismet-capture-ti-cc-2540 kismet-capture-ubertooth-one
 
-echo "Installing Kismet..."
-sudo make install
-
-# Install systemd service
-sudo cp packaging/systemd/kismet.service /etc/systemd/system/
+# The package installation should handle systemd service setup automatically
 sudo systemctl daemon-reload
 
-# Create common dirs (some may already exist)
+# Ensure directories exist with proper permissions
 sudo mkdir -p /var/lib/kismet /var/log/kismet /var/run/kismet
 sudo chown -R kismet:kismet /var/lib/kismet /var/log/kismet /var/run/kismet
 
-# Set proper permissions for Kismet
-sudo chown kismet:kismet /usr/local/bin/kismet*
-sudo chmod u+s /usr/local/bin/kismet_cap_linux_wifi
-sudo chmod u+s /usr/local/bin/kismet_cap_linux_bluetooth
+# Set proper permissions for Kismet capture binaries (if not already set by package)
+sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/kismet_cap_linux_wifi || sudo chmod u+s /usr/bin/kismet_cap_linux_wifi
+sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/kismet_cap_linux_bluetooth || sudo chmod u+s /usr/bin/kismet_cap_linux_bluetooth
 
 # Configure Kismet for edge node operation
 echo "Configuring Kismet..."
