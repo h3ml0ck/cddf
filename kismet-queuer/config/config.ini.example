@@ -1,0 +1,23 @@
+[kismet]
+host = localhost
+port = 2501
+username = 
+password = 
+api_key = 
+
+[rabbitmq]
+host = localhost
+port = 5672
+username = guest
+password = guest
+virtual_host = /
+exchange = kismet_events
+exchange_type = topic
+
+[logging]
+level = INFO
+format = %(asctime)s - %(name)s - %(levelname)s - %(message)s
+
+[general]
+reconnect_delay = 5
+max_reconnect_attempts = 10

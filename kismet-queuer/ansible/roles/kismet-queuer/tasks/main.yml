@@ -1,0 +1,85 @@
+---
+# tasks file for kismet-queuer
+
+- name: Install required packages
+  apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Create kismet-queuer system user
+  user:
+    name: "{{ kismet_queuer_user }}"
+    system: yes
+    shell: /usr/sbin/nologin
+    create_home: no
+    state: present
+  become: yes
+
+- name: Create kismet-queuer installation directory
+  file:
+    path: "{{ kismet_queuer_install_dir }}"
+    state: directory
+    owner: "{{ kismet_queuer_user }}"
+    group: "{{ kismet_queuer_group }}"
+    mode: '0755'
+  become: yes
+
+- name: Copy kismet_to_queue.py application file
+  copy:
+    src: "{{ playbook_dir }}/../src/kismet_to_queue.py"
+    dest: "{{ kismet_queuer_install_dir }}/kismet_to_queue.py"
+    owner: "{{ kismet_queuer_user }}"
+    group: "{{ kismet_queuer_group }}"
+    mode: '0755'
+  become: yes
+  notify: restart kismet-queuer
+
+- name: Copy requirements.txt
+  copy:
+    src: "{{ playbook_dir }}/../src/requirements.txt"
+    dest: "{{ kismet_queuer_install_dir }}/requirements.txt"
+    owner: "{{ kismet_queuer_user }}"
+    group: "{{ kismet_queuer_group }}"
+    mode: '0644'
+  become: yes
+
+- name: Install Python dependencies
+  pip:
+    requirements: "{{ kismet_queuer_install_dir }}/requirements.txt"
+    executable: pip3
+  become: yes
+
+- name: Deploy config.ini from template
+  template:
+    src: config.ini.j2
+    dest: "{{ kismet_queuer_install_dir }}/config.ini"
+    owner: "{{ kismet_queuer_user }}"
+    group: "{{ kismet_queuer_group }}"
+    mode: '0600'
+  become: yes
+  notify: restart kismet-queuer
+
+- name: Deploy systemd service file
+  template:
+    src: kismet_to_queue.service.j2
+    dest: /etc/systemd/system/kismet_to_queue.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify:
+    - reload systemd
+    - restart kismet-queuer
+
+- name: Enable and start kismet-queuer service
+  systemd:
+    name: kismet_to_queue
+    enabled: "{{ kismet_queuer_service_enabled }}"
+    state: "{{ kismet_queuer_service_state }}"
+    daemon_reload: yes
+  become: yes
