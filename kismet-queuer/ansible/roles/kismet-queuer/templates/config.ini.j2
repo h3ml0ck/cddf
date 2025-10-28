@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+# Kismet to RabbitMQ Queuer Configuration
+
+[kismet]
+host = {{ kismet_queuer_kismet_host }}
+port = {{ kismet_queuer_kismet_port }}
+username = {{ kismet_queuer_kismet_username }}
+password = {{ kismet_queuer_kismet_password }}
+api_key = {{ kismet_queuer_kismet_api_key }}
+
+[rabbitmq]
+host = {{ kismet_queuer_rabbitmq_host }}
+port = {{ kismet_queuer_rabbitmq_port }}
+username = {{ kismet_queuer_rabbitmq_username }}
+password = {{ kismet_queuer_rabbitmq_password }}
+virtual_host = {{ kismet_queuer_rabbitmq_virtual_host }}
+exchange = {{ kismet_queuer_rabbitmq_exchange }}
+exchange_type = {{ kismet_queuer_rabbitmq_exchange_type }}
+
+[logging]
+level = {{ kismet_queuer_log_level }}
+format = {{ kismet_queuer_log_format }}
+
+[general]
+reconnect_delay = {{ kismet_queuer_reconnect_delay }}
+max_reconnect_attempts = {{ kismet_queuer_max_reconnect_attempts }}

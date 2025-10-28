@@ -1,0 +1,35 @@
+---
+# defaults file for kismet-queuer
+
+# Installation settings
+kismet_queuer_install_dir: /opt/kismet-queuer
+kismet_queuer_user: kismet-queuer
+kismet_queuer_group: kismet-queuer
+
+# Kismet settings
+kismet_queuer_kismet_host: localhost
+kismet_queuer_kismet_port: 2501
+kismet_queuer_kismet_username: ""
+kismet_queuer_kismet_password: ""
+kismet_queuer_kismet_api_key: ""
+
+# RabbitMQ settings
+kismet_queuer_rabbitmq_host: localhost
+kismet_queuer_rabbitmq_port: 5672
+kismet_queuer_rabbitmq_username: guest
+kismet_queuer_rabbitmq_password: guest
+kismet_queuer_rabbitmq_virtual_host: /
+kismet_queuer_rabbitmq_exchange: kismet_events
+kismet_queuer_rabbitmq_exchange_type: topic
+
+# Logging settings
+kismet_queuer_log_level: INFO
+kismet_queuer_log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# General settings
+kismet_queuer_reconnect_delay: 5
+kismet_queuer_max_reconnect_attempts: 10
+
+# Service settings
+kismet_queuer_service_enabled: true
+kismet_queuer_service_state: started

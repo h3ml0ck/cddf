@@ -1,0 +1,13 @@
+---
+# handlers file for kismet-queuer
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+  become: yes
+
+- name: restart kismet-queuer
+  systemd:
+    name: kismet_to_queue
+    state: restarted
+  become: yes

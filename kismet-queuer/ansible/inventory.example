@@ -1,0 +1,19 @@
+# Example inventory file for kismet-queuer deployment
+# Copy this to 'inventory' and customize for your environment
+
+[kismet_servers]
+# Single server example
+monitoring-01 ansible_host=192.168.1.10 ansible_user=ansible
+
+# Multiple servers example
+# monitoring-02 ansible_host=192.168.1.11 ansible_user=ansible
+# monitoring-03 ansible_host=192.168.1.12 ansible_user=ansible
+
+[kismet_servers:vars]
+# Common variables for all kismet servers
+ansible_python_interpreter=/usr/bin/python3
+
+# Optional: Use different RabbitMQ server for all hosts
+# kismet_queuer_rabbitmq_host=rabbitmq.example.com
+# kismet_queuer_rabbitmq_username=kismet_user
+# kismet_queuer_rabbitmq_password=secure_password

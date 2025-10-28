@@ -1,0 +1,41 @@
+---
+# Example playbook for deploying kismet-queuer
+# Run with: ansible-playbook -i inventory playbook.yml
+
+- name: Deploy kismet-queuer service
+  hosts: kismet_servers
+  become: yes
+
+  vars:
+    # Kismet connection settings
+    kismet_queuer_kismet_host: localhost
+    kismet_queuer_kismet_port: 2501
+    # Use api_key for authentication (preferred)
+    kismet_queuer_kismet_api_key: "YOUR_KISMET_API_KEY_HERE"
+
+    # RabbitMQ connection settings
+    kismet_queuer_rabbitmq_host: localhost
+    kismet_queuer_rabbitmq_port: 5672
+    kismet_queuer_rabbitmq_username: guest
+    kismet_queuer_rabbitmq_password: guest  # Change this! Use Ansible Vault in production
+    kismet_queuer_rabbitmq_virtual_host: /
+    kismet_queuer_rabbitmq_exchange: kismet_events
+
+    # Application settings
+    kismet_queuer_log_level: INFO
+    kismet_queuer_reconnect_delay: 5
+    kismet_queuer_max_reconnect_attempts: 10
+
+  roles:
+    - kismet-queuer
+
+  post_tasks:
+    - name: Display service status
+      command: systemctl status kismet_to_queue --no-pager
+      register: service_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show service status
+      debug:
+        msg: "{{ service_status.stdout_lines }}"

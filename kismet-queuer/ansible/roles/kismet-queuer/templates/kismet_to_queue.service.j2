@@ -1,0 +1,41 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Kismet to RabbitMQ Message Queuer
+After=network.target network-online.target
+Wants=network-online.target
+# Uncomment if RabbitMQ runs as a service
+# After=rabbitmq-server.service
+# Wants=rabbitmq-server.service
+
+[Service]
+Type=simple
+User={{ kismet_queuer_user }}
+Group={{ kismet_queuer_group }}
+WorkingDirectory={{ kismet_queuer_install_dir }}
+ExecStart=/usr/bin/python3 {{ kismet_queuer_install_dir }}/kismet_to_queue.py {{ kismet_queuer_install_dir }}/config.ini
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+# Allow more restart attempts for long-running service
+# 5 failures within 5 minutes before giving up
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ kismet_queuer_install_dir }}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kismet-queuer
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
