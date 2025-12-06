@@ -50,5 +50,5 @@ systemctl daemon-reload
 systemctl reset-failed "${SERVICE_NAME}" 2>/dev/null || true
 
 echo -e "${GREEN}✓ ${SERVICE_NAME} service has been uninstalled successfully!${NC}"
-echo -e "${YELLOW}Note: The application files in /home/ansible/cddf-temp/kismet-queuer have not been removed.${NC}"
-echo -e "${YELLOW}      To remove them completely, delete the directory manually.${NC}"
+echo -e "${YELLOW}Note: The application files have not been removed.${NC}"
+echo -e "${YELLOW}      To remove them completely, delete the installation directory manually.${NC}"

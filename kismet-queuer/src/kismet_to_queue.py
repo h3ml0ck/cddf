@@ -9,6 +9,7 @@ import configparser
 import sys
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
+from urllib.parse import quote
 
 try:
     import websockets
@@ -32,6 +33,7 @@ class KismetToQueue:
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = self.config.getint('general', 'max_reconnect_attempts', fallback=10)
         self.reconnect_delay = self.config.getint('general', 'reconnect_delay', fallback=5)
+        self.max_reconnect_delay = self.config.getint('general', 'max_reconnect_delay', fallback=60)
 
     def _load_config(self, config_file: str) -> configparser.ConfigParser:
         config = configparser.ConfigParser()
@@ -74,12 +76,17 @@ class KismetToQueue:
 
     async def _connect_rabbitmq(self) -> bool:
         try:
+            # URL encode credentials to handle special characters
+            username = quote(self.config.get('rabbitmq', 'username'), safe='')
+            password = quote(self.config.get('rabbitmq', 'password'), safe='')
+            vhost = quote(self.config.get('rabbitmq', 'virtual_host'), safe='')
+
             rabbitmq_url = "amqp://{username}:{password}@{host}:{port}/{vhost}".format(
-                username=self.config.get('rabbitmq', 'username'),
-                password=self.config.get('rabbitmq', 'password'),
+                username=username,
+                password=password,
                 host=self.config.get('rabbitmq', 'host'),
                 port=self.config.getint('rabbitmq', 'port'),
-                vhost=self.config.get('rabbitmq', 'virtual_host')
+                vhost=vhost
             )
 
             self.rabbitmq_connection = await aio_pika.connect_robust(rabbitmq_url)
@@ -224,8 +231,10 @@ class KismetToQueue:
                 self.reconnect_attempts += 1
 
                 if self.reconnect_attempts < self.max_reconnect_attempts:
-                    self.logger.info(f"Retrying in {self.reconnect_delay} seconds...")
-                    await asyncio.sleep(self.reconnect_delay)
+                    # Exponential backoff with max delay cap
+                    delay = min(self.reconnect_delay * (2 ** (self.reconnect_attempts - 1)), self.max_reconnect_delay)
+                    self.logger.info(f"Retrying in {delay} seconds...")
+                    await asyncio.sleep(delay)
                 else:
                     self.logger.error(f"Max reconnection attempts ({self.max_reconnect_attempts}) reached")
                     break
