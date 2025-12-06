@@ -20,4 +20,5 @@ format = %(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 [general]
 reconnect_delay = 5
+max_reconnect_delay = 60
 max_reconnect_attempts = 10

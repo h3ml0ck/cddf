@@ -28,6 +28,7 @@ kismet_queuer_log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # General settings
 kismet_queuer_reconnect_delay: 5
+kismet_queuer_max_reconnect_delay: 60
 kismet_queuer_max_reconnect_attempts: 10
 
 # Service settings

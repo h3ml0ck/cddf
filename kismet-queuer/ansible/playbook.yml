@@ -1,6 +1,16 @@
 ---
 # Example playbook for deploying kismet-queuer
 # Run with: ansible-playbook -i inventory playbook.yml
+#
+# ⚠️  SECURITY WARNING ⚠️
+# This playbook contains example credentials. DO NOT use in production!
+# For production deployments:
+#   1. Store sensitive variables in an encrypted Ansible Vault file
+#   2. Create vars/credentials.yml with your actual credentials
+#   3. Encrypt it: ansible-vault encrypt vars/credentials.yml
+#   4. Run with: ansible-playbook -i inventory playbook.yml --ask-vault-pass
+#
+# See: https://docs.ansible.com/ansible/latest/user_guide/vault.html
 
 - name: Deploy kismet-queuer service
   hosts: kismet_servers
@@ -17,13 +27,14 @@
     kismet_queuer_rabbitmq_host: localhost
     kismet_queuer_rabbitmq_port: 5672
     kismet_queuer_rabbitmq_username: guest
-    kismet_queuer_rabbitmq_password: guest  # Change this! Use Ansible Vault in production
+    kismet_queuer_rabbitmq_password: guest  # ⚠️ CHANGE THIS! Use Ansible Vault in production!
     kismet_queuer_rabbitmq_virtual_host: /
     kismet_queuer_rabbitmq_exchange: kismet_events
 
     # Application settings
     kismet_queuer_log_level: INFO
     kismet_queuer_reconnect_delay: 5
+    kismet_queuer_max_reconnect_delay: 60
     kismet_queuer_max_reconnect_attempts: 10
 
   roles:
