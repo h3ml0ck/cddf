@@ -1,15 +1,24 @@
 [kismet]
 host = localhost
 port = 2501
-username = 
-password = 
-api_key = 
+# Prefer api_key over username/password if both are set
+api_key =
+# username/password only used if api_key is empty
+username =
+password =
+# Set use_tls = true to connect via wss:// (recommended for remote hosts)
+use_tls = false
 
 [rabbitmq]
 host = localhost
 port = 5672
-username = guest
-password = guest
+# WARNING: Change these credentials before deploying to production.
+# The 'guest' account is an insecure RabbitMQ default that allows
+# unauthenticated access from localhost. Create a dedicated user:
+#   rabbitmqctl add_user cddf <strong-password>
+#   rabbitmqctl set_permissions cddf "kismet.*" "kismet.*" "kismet.*"
+username = CHANGE_ME
+password = CHANGE_ME
 virtual_host = /
 exchange = kismet_events
 exchange_type = topic
@@ -19,5 +28,7 @@ level = INFO
 format = %(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 [general]
+# reconnect_delay must be > 0 (seconds, used as base for exponential backoff)
 reconnect_delay = 5
+# max_reconnect_attempts must be > 0
 max_reconnect_attempts = 10

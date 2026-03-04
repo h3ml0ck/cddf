@@ -17,10 +17,32 @@ window.
 from __future__ import annotations
 
 import argparse
+import os
+import sys
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+_ALLOWED_OUTPUT_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.pdf', '.svg'}
+
+
+def _validate_input_path(path: str) -> None:
+    """Raise ValueError if *path* is not a readable regular file."""
+    p = Path(path).resolve()
+    if not p.is_file():
+        raise ValueError(f"Input path is not a regular file: {path!r}")
+
+
+def _validate_output_path(path: str) -> None:
+    """Raise ValueError if *path* does not have an allowed image extension."""
+    ext = Path(path).suffix.lower()
+    if ext not in _ALLOWED_OUTPUT_EXTENSIONS:
+        raise ValueError(
+            f"Output path has unsupported extension {ext!r}. "
+            f"Allowed: {', '.join(sorted(_ALLOWED_OUTPUT_EXTENSIONS))}"
+        )
 
 
 def read_rtl_power_csv(path: str) -> Tuple[np.ndarray, List[str], np.ndarray]:
@@ -90,6 +112,13 @@ def main(argv: List[str] | None = None) -> int:
         "-o", "--output", help="Path to save the plot (default: display it)"
     )
     args = parser.parse_args(argv)
+    try:
+        _validate_input_path(args.file)
+        if args.output:
+            _validate_output_path(args.output)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     freqs, times, power = read_rtl_power_csv(args.file)
     if freqs.size == 0:
         print("No rtl_power data found", flush=True)

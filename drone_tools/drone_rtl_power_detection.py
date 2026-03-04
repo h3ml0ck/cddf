@@ -3,9 +3,25 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from typing import List
+
+# Strict whitelist pattern for rtl_power frequency range argument.
+# Accepts formats like "2400M:2483M:1M" or "2.4G:2.5G:100k".
+_FREQ_RANGE_RE = re.compile(
+    r"^\d+(\.\d+)?[kKmMgG]?:\d+(\.\d+)?[kKmMgG]?:\d+(\.\d+)?[kKmMgG]?$"
+)
+
+
+def _validate_freq_range(freq_range: str) -> None:
+    """Raise ValueError if *freq_range* is not a safe rtl_power frequency spec."""
+    if not _FREQ_RANGE_RE.match(freq_range):
+        raise ValueError(
+            f"Invalid frequency range: {freq_range!r}. "
+            "Expected format: start:stop:bin, e.g. '2400M:2483M:1M'"
+        )
 
 
 def _parse_rtl_power_output(output: str, threshold_db: float) -> bool:
@@ -47,6 +63,7 @@ def detect_rtl_power(
     Returns:
         ``True`` if a bin exceeds ``threshold_db``.
     """
+    _validate_freq_range(freq_range)
     cmd = ["rtl_power", "-f", freq_range, "-i", str(integration), "-1"]
     try:
         res = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=10)
