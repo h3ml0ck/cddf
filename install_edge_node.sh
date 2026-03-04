@@ -65,7 +65,8 @@ sudo apt install -y \
     libmosquitto-dev \
     ubertooth \
     libudev-dev \
-    libdbus-1-dev
+    libdbus-1-dev \
+    glances
 
 # Install RTL-SDR tools
 echo "Installing RTL-SDR utilities..."
@@ -206,49 +207,35 @@ pip install \
     nrfutil
 
 # Configure audio system
+# Group membership (set above) is the correct way to grant audio access.
+# A world-writable chmod 666 on /dev/snd/* is not used here.
 echo "Configuring audio system..."
 sudo usermod -a -G audio $USER
 
-# Create systemd service for audio permissions
-sudo tee /etc/systemd/system/cddf-audio-setup.service > /dev/null <<EOF
-[Unit]
-Description=CDDF Audio Setup
-After=sound.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'chmod 666 /dev/snd/* || true'
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl enable cddf-audio-setup.service
-
 # Create udev rules for hardware access
+# MODE="0660" grants rw to owner+group only; users must be in the relevant group.
 echo "Setting up hardware permissions..."
 sudo tee /etc/udev/rules.d/99-cddf-hardware.rules > /dev/null <<EOF
 # RTL-SDR devices
-SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2832", GROUP="dialout", MODE="0666"
-SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2832", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", GROUP="dialout", MODE="0660"
 
 # HackRF devices
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6089", GROUP="dialout", MODE="0666"
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="60a1", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6089", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="60a1", GROUP="dialout", MODE="0660"
 
 # Nordic nRF52 devices
 # nRF52840 DK
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="1015", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="1015", GROUP="dialout", MODE="0660"
 # nRF52840 Dongle
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1915", ATTRS{idProduct}=="521f", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1915", ATTRS{idProduct}=="521f", GROUP="dialout", MODE="0660"
 # nRF52832 DK
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="1052", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="1052", GROUP="dialout", MODE="0660"
 # Generic SEGGER J-Link (used by Nordic DKs)
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="0105", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1366", ATTRS{idProduct}=="0105", GROUP="dialout", MODE="0660"
 
 # Audio devices
-SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
+SUBSYSTEM=="sound", GROUP="audio", MODE="0660"
 EOF
 
 # Reload udev rules

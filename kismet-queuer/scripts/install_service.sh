@@ -61,11 +61,15 @@ if [[ ! -f "${PROJECT_ROOT}/config/config.ini" ]]; then
 fi
 
 # Set ownership and permissions
+# Only the config file is owned by the service user; project source stays
+# owned by root so a compromised service user cannot modify its own code.
 echo -e "${GREEN}Setting ownership and permissions...${NC}"
-chown -R kismet-queuer:kismet-queuer "${PROJECT_ROOT}"
-chmod 600 "${PROJECT_ROOT}/config/config.ini"
-echo -e "${GREEN}✓ Directory ownership set to kismet-queuer${NC}"
-echo -e "${GREEN}✓ Config file permissions set to 600 (owner read/write only)${NC}"
+chown root:kismet-queuer "${PROJECT_ROOT}/config/config.ini"
+chmod 640 "${PROJECT_ROOT}/config/config.ini"
+# Ensure source files are readable but not writable by the service user
+chmod 644 "${PROJECT_ROOT}/src/kismet_to_queue.py"
+echo -e "${GREEN}✓ Config file owned by root:kismet-queuer with mode 640${NC}"
+echo -e "${GREEN}✓ Source files remain owned by root (read-only for service user)${NC}"
 
 # Install dependencies
 echo -e "${GREEN}Installing Python dependencies...${NC}"

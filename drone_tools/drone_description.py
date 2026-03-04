@@ -1,7 +1,22 @@
 import os
 import sys
 import base64
+from pathlib import Path
 import openai
+
+_ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+
+
+def _validate_image_path(image_path: str) -> None:
+    """Raise ValueError if *image_path* is not a readable image file."""
+    p = Path(image_path).resolve()
+    if not p.is_file():
+        raise ValueError(f"Image path is not a regular file: {image_path!r}")
+    if p.suffix.lower() not in _ALLOWED_IMAGE_EXTENSIONS:
+        raise ValueError(
+            f"Unsupported image extension {p.suffix!r}. "
+            f"Allowed: {', '.join(sorted(_ALLOWED_IMAGE_EXTENSIONS))}"
+        )
 
 
 def describe_drone(image_path: str, prompt: str = "What type of drone is in this image?") -> str:
@@ -45,6 +60,7 @@ def main(argv=None):
         return 1
     image_path = argv[0]
     try:
+        _validate_image_path(image_path)
         description = describe_drone(image_path)
     except Exception as exc:
         print(f"Error describing drone: {exc}", file=sys.stderr)
