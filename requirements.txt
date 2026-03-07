@@ -1,8 +1,3 @@
-openai>=1.0.0,<2.0.0
-
-numpy>=1.24.0,<3.0.0
-soundfile>=0.12.1,<1.0.0
-sounddevice>=0.4.6,<1.0.0
-pyhackrf>=0.0.3
-matplotlib>=3.7.0,<4.0.0
-scapy>=2.5.0,<3.0.0
+# Install the package and all its dependencies from pyproject.toml.
+# This file exists only as a convenience; pyproject.toml is the source of truth.
+-e .
