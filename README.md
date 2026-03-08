@@ -2,6 +2,54 @@
 
 A multi-modal drone detection and analysis toolkit for edge deployments. CDDF combines audio, RF, WiFi Remote ID, and vision-based detection into a unified sensor platform, with a distributed architecture that bridges Kismet sensor data to RabbitMQ for centralized analysis.
 
+## Architecture
+
+```mermaid
+graph TD
+    subgraph Edge["Edge Node (Raspberry Pi)"]
+        subgraph Sensors["Physical Sensors"]
+            MIC["Microphone"]
+            HRF["HackRF One"]
+            RTL["RTL-SDR"]
+            WLAN["WiFi adapter\n(monitor mode)"]
+            BT["Bluetooth adapter"]
+        end
+
+        subgraph drone_tools["drone_tools"]
+            AUD["drone-audio-monitor"]
+            RF["drone-rf-detect"]
+            RTLP["drone-rtl-power-detect"]
+            WIFI["drone-wifi-remote-id"]
+            BLE["drone-ble-remote-id"]
+        end
+
+        subgraph KismetStack["Kismet Stack"]
+            KIS["Kismet\n(WiFi + BLE data sources)"]
+            KQ["kismet-queuer\n(systemd service)"]
+        end
+
+        MIC --> AUD
+        HRF --> RF
+        RTL --> RTLP
+        WLAN --> WIFI
+        BT --> BLE
+        WLAN & BT --> KIS
+        KIS -->|"WebSocket"| KQ
+    end
+
+    subgraph Central["Central / Analysis"]
+        RMQ[("RabbitMQ\ntopic exchange")]
+        CONS["Consumers\n(alerting · logging · ML)"]
+        OPENAI["OpenAI API\n(vision · image gen)"]
+    end
+
+    KQ -->|"kismet.type.device"| RMQ
+    RMQ --> CONS
+    CONS -.->|"drone-describe-image\ndrone-image-query"| OPENAI
+```
+
+---
+
 ## Components
 
 | Component | Description |
@@ -23,6 +71,7 @@ A multi-modal drone detection and analysis toolkit for edge deployments. CDDF co
 | HackRF One | `drone-rf-detect` | Broadband RF scanning |
 | RTL-SDR dongle | `drone-rtl-power-detect`, `drone-rtl-power-visualize` | Requires `rtl_power` utility |
 | WiFi adapter (monitor mode) | `drone-wifi-remote-id` | May require root/sudo |
+| Bluetooth adapter | `drone-ble-remote-id` | Any adapter supported by `bleak` |
 | Microphone / audio device | `drone-audio-monitor` | Any ALSA/PulseAudio device |
 | OpenAI API key | `drone-image-query`, `drone-describe-image` | Set `OPENAI_API_KEY` env var |
 
@@ -87,12 +136,20 @@ drone-describe-image path/to/drone_image.jpg
 drone-image-query "a DJI Mavic flying over a forest"
 ```
 
+**BLE Remote ID (ASTM F3411)**
+```bash
+# Capture BLE Remote ID advertisements
+drone-ble-remote-id
+drone-ble-remote-id --timeout 60
+drone-ble-remote-id -v        # Verbose with raw hex
+```
+
 **Testing / simulation**
 ```bash
 # Simulate Sniffle BLE Remote ID output (no hardware required)
-drone-mock-sniffle-remote-id            # Run indefinitely
-drone-mock-sniffle-remote-id -t 30      # Run for 30 seconds
-drone-mock-sniffle-remote-id -v         # Verbose with decoded packets
+drone-mock-sniffle            # Run indefinitely
+drone-mock-sniffle -t 30      # Run for 30 seconds
+drone-mock-sniffle -v         # Verbose with decoded packets
 ```
 
 Alternatively, run any module directly without installation:
