@@ -52,7 +52,6 @@ sudo apt install -y \
     libprotobuf-c-dev \
     protobuf-compiler \
     protobuf-c-compiler \
-    libusb-1.0-0-dev \
     python3-setuptools \
     python3-protobuf \
     librtlsdr-dev \
@@ -67,10 +66,6 @@ sudo apt install -y \
     libudev-dev \
     libdbus-1-dev \
     glances
-
-# Install RTL-SDR tools
-echo "Installing RTL-SDR utilities..."
-sudo apt install -y rtl-sdr
 
 # Configure RTL-SDR (blacklist kernel modules that interfere)
 echo "Configuring RTL-SDR..."
@@ -131,7 +126,7 @@ sudo tee /etc/kismet/conf.d/cddf-edge.conf > /dev/null <<EOF
 # Enable external data sources for Sniffle integration
 helper_binary_path=/usr/local/bin:/usr/bin:/bin
 alloweduser=kismet
-alloweduser=$USER
+alloweduser=$USER  # expanded at install time to the user running this script
 
 # Remote capture configuration for BLE Remote ID
 remote_capture_listen=127.0.0.1
@@ -186,14 +181,12 @@ EOF
 # Create Python virtual environment
 echo "Creating Python virtual environment..."
 python3 -m venv ~/cddf-env
-source ~/cddf-env/bin/activate
 
-# Upgrade pip
-pip install --upgrade pip
+# Upgrade pip and install Python dependencies using the venv's pip directly
+~/cddf-env/bin/pip install --upgrade pip
 
-# Install Python dependencies
 echo "Installing Python dependencies..."
-pip install \
+~/cddf-env/bin/pip install \
     openai>=1.0.0 \
     numpy \
     soundfile \
@@ -268,12 +261,14 @@ cat > ~/activate_cddf.sh <<EOF
 source ~/cddf-env/bin/activate
 cd ~/cddf
 echo "CDDF environment activated. Available tools:"
-echo "  python drone_audio_monitor.py --device 0"
-echo "  python drone_rf_detection.py"
-echo "  python drone_rtl_power_detection.py --range 2400M:2483M:1M"
-echo "  python drone_description.py image.jpg"
-echo "  python image_query.py 'drone description'"
-echo "  python rtl_power_visualization.py rtl_power_output.csv"
+echo "  drone-audio-monitor                              # Real-time microphone monitoring"
+echo "  drone-audio-detect path/to/audio.wav            # File-based audio analysis"
+echo "  drone-rf-detect --freq 2.4e9                    # HackRF RF detection"
+echo "  drone-rtl-power-detect                          # RTL-SDR scanning"
+echo "  drone-rtl-power-visualize                       # Frequency heatmap visualization"
+echo "  drone-describe-image path/to/image.jpg          # Identify drone in image"
+echo "  drone-image-query 'a DJI drone'                 # Generate image via DALL-E"
+echo "  drone-wifi-remote-id wlan0                      # WiFi Remote ID capture"
 echo ""
 echo "Kismet wireless monitoring:"
 echo "  sudo systemctl start kismet    # Start Kismet server"
