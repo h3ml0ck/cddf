@@ -293,9 +293,12 @@ class MockSniffle:
         print("Drone Remote ID capture starting...", file=sys.stderr)
         if duration:
             print(f"Capture duration: {duration} seconds", file=sys.stderr)
+        if self.output_file:
+            print(f"Writing output to: {self.output_file}", file=sys.stderr)
         print("Press Ctrl+C to stop\n", file=sys.stderr)
 
         start_time = time.time()
+        out = open(self.output_file, 'w') if self.output_file else None
 
         try:
             while True:
@@ -334,8 +337,12 @@ class MockSniffle:
                 else:  # sniffle format
                     output = self.generate_sniffle_packet_output(drone, message_data, rssi)
 
-                print(output)
-                print()  # Empty line between packets
+                if out:
+                    out.write(output + '\n\n')
+                    out.flush()
+                else:
+                    print(output)
+                    print()  # Empty line between packets
 
                 self.packet_count += 1
                 self.message_index += 1
@@ -346,6 +353,9 @@ class MockSniffle:
         except KeyboardInterrupt:
             elapsed = time.time() - start_time
             print(f"\nCapture stopped. Packets captured: {self.packet_count} in {elapsed:.1f}s", file=sys.stderr)
+        finally:
+            if out:
+                out.close()
 
 
 def main():
@@ -374,7 +384,7 @@ Examples:
     )
     parser.add_argument(
         "-o", "--output",
-        help="Output file (not implemented in mock)"
+        help="Write captured packets to this file instead of stdout"
     )
     parser.add_argument(
         "--format",
@@ -384,9 +394,6 @@ Examples:
     )
 
     args = parser.parse_args()
-
-    if args.output:
-        print("Note: Output file not implemented in mock version", file=sys.stderr)
 
     mock_sniffle = MockSniffle(verbose=args.verbose, output_file=args.output)
 
