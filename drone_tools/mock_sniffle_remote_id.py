@@ -7,6 +7,7 @@ based on ASTM F3411 standard for testing and demonstration purposes.
 """
 
 import argparse
+import math
 import random
 import struct
 import sys
@@ -97,9 +98,9 @@ class MockSniffleDrone:
 
         if dt > 0.5:  # Update every 0.5 seconds
             # Simple movement simulation
-            direction_rad = self.direction * 3.14159 / 180
-            dlat = (self.speed_h * dt * 0.000009) * random.uniform(0.8, 1.2)
-            dlon = (self.speed_h * dt * 0.000011) * random.uniform(0.8, 1.2)
+            direction_rad = math.radians(self.direction)
+            dlat = (self.speed_h * dt * 0.000009 * math.cos(direction_rad)) * random.uniform(0.8, 1.2)
+            dlon = (self.speed_h * dt * 0.000011 * math.sin(direction_rad)) * random.uniform(0.8, 1.2)
 
             self.latitude += dlat
             self.longitude += dlon
