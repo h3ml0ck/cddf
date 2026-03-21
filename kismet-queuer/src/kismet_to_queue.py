@@ -152,7 +152,8 @@ class KismetToQueue:
 
     def _get_routing_key(self, message_data: Dict[str, Any]) -> str:
         message_type = message_data.get('message_type', 'unknown')
-        device_type = message_data.get('device_data', {}).get('kismet_device_base_type', 'unknown')
+        device_data = message_data.get('device_data') or {}
+        device_type = device_data.get('kismet_device_base_type', 'unknown')
 
         return f"kismet.{message_type}.{device_type}"
 
