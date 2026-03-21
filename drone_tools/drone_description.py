@@ -6,6 +6,14 @@ import openai
 
 _ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
+_EXTENSION_TO_MIME = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+}
+
 
 def _validate_image_path(image_path: str) -> None:
     """Raise ValueError if *image_path* is not a readable image file."""
@@ -33,18 +41,21 @@ def describe_drone(image_path: str, prompt: str = "What type of drone is in this
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY environment variable not set")
 
+    ext = Path(image_path).suffix.lower()
+    mime_type = _EXTENSION_TO_MIME.get(ext, 'image/jpeg')
+
     with open(image_path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("ascii")
 
     client = openai.OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model="gpt-4o-mini", 
+        model="gpt-4o-mini",
         messages=[
             {
                 "role": "user",
                 "content": [
                     {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded}"}},
                 ],
             }
         ],
