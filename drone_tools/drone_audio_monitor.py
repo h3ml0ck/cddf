@@ -17,13 +17,13 @@ import numpy as np
 
 try:
     import sounddevice as sd
-except Exception as e:
+except ImportError:
     sd = None
 
 try:
     # Optional speed-up
     import scipy.fft as sfft
-except Exception:  # optional dependency
+except ImportError:
     sfft = None
 
 
@@ -79,6 +79,10 @@ def monitor_audio(
     min_interval: float,
 ) -> None:
     """Continuously monitor the selected device for drone sounds."""
+    if sd is None:
+        raise RuntimeError(
+            "sounddevice is required but not installed. Install with: pip install sounddevice"
+        )
 
     # Determine blocksize: CLI override > derived from duration; nudge to power-of-two for FFT perf
     if blocksize_cli and blocksize_cli > 0:
@@ -181,6 +185,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.list_devices:
+        if sd is None:
+            print("Error: sounddevice is not installed. Install with: pip install sounddevice", file=sys.stderr)
+            return 1
         print(sd.query_devices())
         return 0
 

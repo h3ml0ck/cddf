@@ -7,7 +7,7 @@ name = "citizen-drone-defense-force"
 version = "1.2.0"
 description = "Drone audio/RF/Wi-Fi/vision utilities"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
   "numpy",
   "soundfile",
