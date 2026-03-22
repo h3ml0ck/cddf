@@ -289,35 +289,42 @@ echo "  # See howto/nrf-drone-remote-id-setup.md for setup instructions"
 EOF
 chmod +x ~/activate_cddf.sh
 
-echo "==================================================================================="
-echo "Installation Complete!"
-echo "==================================================================================="
+NEXT_STEPS_FILE=~/CDDF_NEXT_STEPS.md
+
+tee "$NEXT_STEPS_FILE" <<EOF
+===================================================================================
+Installation Complete!
+===================================================================================
+
+Next steps:
+1. Reboot your system: sudo reboot
+2. After reboot, activate the environment: source ~/activate_cddf.sh
+3. Copy ~/cddf/.env.template to ~/cddf/.env and add your OpenAI API key
+4. Test audio devices: python -m sounddevice
+5. Test RTL-SDR: rtl_test
+6. Test HackRF: hackrf_info
+7. Test nRF devices: nrfjprog --ids
+8. Start Kismet: sudo systemctl start kismet
+9. Access Kismet web interface: http://localhost:2501
+
+Hardware notes:
+- RTL-SDR dongles should be accessible after reboot
+- HackRF One should be detected automatically
+- Audio input devices configured for drone monitoring
+- Kismet configured for wireless monitoring and BLE Remote ID detection
+- nRF52 devices (DK/Dongle) ready for BLE Remote ID scanning
+
+Monitoring capabilities:
+- Audio-based drone detection (100-700Hz analysis)
+- RF signal detection (HackRF/RTL-SDR)
+- WiFi/Bluetooth device monitoring (Kismet)
+- Remote ID beacon detection (BLE via Sniffle integration)
+- nRF52-based BLE Remote ID scanning
+- Centralized logging and web-based analysis
+
+To start monitoring: ./activate_cddf.sh
+===================================================================================
+EOF
+
 echo ""
-echo "Next steps:"
-echo "1. Reboot your system: sudo reboot"
-echo "2. After reboot, activate the environment: source ~/activate_cddf.sh"
-echo "3. Copy ~/cddf/.env.template to ~/cddf/.env and add your OpenAI API key"
-echo "4. Test audio devices: python -m sounddevice"
-echo "5. Test RTL-SDR: rtl_test"
-echo "6. Test HackRF: hackrf_info"
-echo "7. Test nRF devices: nrfjprog --ids"
-echo "8. Start Kismet: sudo systemctl start kismet"
-echo "9. Access Kismet web interface: http://localhost:2501"
-echo ""
-echo "Hardware notes:"
-echo "- RTL-SDR dongles should be accessible after reboot"
-echo "- HackRF One should be detected automatically"
-echo "- Audio input devices configured for drone monitoring"
-echo "- Kismet configured for wireless monitoring and BLE Remote ID detection"
-echo "- nRF52 devices (DK/Dongle) ready for BLE Remote ID scanning"
-echo ""
-echo "Monitoring capabilities:"
-echo "- Audio-based drone detection (100-700Hz analysis)"
-echo "- RF signal detection (HackRF/RTL-SDR)"
-echo "- WiFi/Bluetooth device monitoring (Kismet)"
-echo "- Remote ID beacon detection (BLE via Sniffle integration)"
-echo "- nRF52-based BLE Remote ID scanning"
-echo "- Centralized logging and web-based analysis"
-echo ""
-echo "To start monitoring: ./activate_cddf.sh"
-echo "==================================================================================="
+echo "Next steps saved to: $NEXT_STEPS_FILE"
