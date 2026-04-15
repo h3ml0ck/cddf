@@ -35,6 +35,7 @@ drone-wifi-remote-id = "drone_tools.drone_wifi_remote_id:main"
 drone-rtl-power-visualize = "drone_tools.rtl_power_visualization:main"
 drone-mock-sniffle = "drone_tools.mock_sniffle_remote_id:main"
 drone-ble-remote-id = "drone_tools.drone_ble_remote_id:main"
+drone-db = "drone_tools.drone_db:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
