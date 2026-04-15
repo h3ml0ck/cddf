@@ -269,6 +269,11 @@ echo "  drone-rtl-power-visualize                       # Frequency heatmap visu
 echo "  drone-describe-image path/to/image.jpg          # Identify drone in image"
 echo "  drone-image-query 'a DJI drone'                 # Generate image via DALL-E"
 echo "  drone-wifi-remote-id wlan0                      # WiFi Remote ID capture"
+echo "  drone-ble-remote-id                              # BLE Remote ID capture"
+echo "  drone-db init                                    # Initialize drone reference database"
+echo "  drone-db add --manufacturer DJI --model 'Mavic 3' # Add a drone to the catalog"
+echo "  drone-db list                                    # List known drones"
+echo "  drone-db search DJI                              # Search the catalog"
 echo ""
 echo "Kismet wireless monitoring:"
 echo "  sudo systemctl start kismet    # Start Kismet server"
@@ -299,8 +304,9 @@ Next steps:
 5. Test RTL-SDR: rtl_test
 6. Test HackRF: hackrf_info
 7. Test nRF devices: nrfjprog --ids
-8. Start Kismet: sudo systemctl start kismet
-9. Access Kismet web interface: http://localhost:2501
+8. Initialize drone reference database: drone-db init
+9. Start Kismet: sudo systemctl start kismet
+10. Access Kismet web interface: http://localhost:2501
 
 Hardware notes:
 - RTL-SDR dongles should be accessible after reboot
@@ -315,6 +321,7 @@ Monitoring capabilities:
 - WiFi/Bluetooth device monitoring (Kismet)
 - Remote ID beacon detection (BLE via Sniffle integration)
 - nRF52-based BLE Remote ID scanning
+- Drone reference database (SQLite catalog of known makes/models and Remote ID capabilities)
 - Centralized logging and web-based analysis
 
 To start monitoring: ./activate_cddf.sh
