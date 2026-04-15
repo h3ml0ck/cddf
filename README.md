@@ -21,6 +21,7 @@ graph TD
             RTLP["drone-rtl-power-detect"]
             WIFI["drone-wifi-remote-id"]
             BLE["drone-ble-remote-id"]
+            DB[("drone-db\n(SQLite reference catalog)")]
         end
 
         subgraph KismetStack["Kismet Stack"]
@@ -54,7 +55,7 @@ graph TD
 
 | Component | Description |
 |-----------|-------------|
-| **`drone_tools`** | Python package — audio, RF, WiFi Remote ID, and vision detection modules |
+| **`drone_tools`** | Python package — audio, RF, WiFi Remote ID, vision detection modules, and drone reference database |
 | **`kismet-queuer`** | Standalone service — bridges Kismet WebSocket API to RabbitMQ |
 | **`ansible/`** | Ansible playbook for automated Watchtower edge node provisioning |
 | **`install_edge_node.sh`** | Bash script for manual edge node provisioning |
@@ -142,6 +143,31 @@ drone-image-query "a DJI Mavic flying over a forest"
 drone-ble-remote-id
 drone-ble-remote-id --timeout 60
 drone-ble-remote-id -v        # Verbose with raw hex
+```
+
+**Drone reference database**
+```bash
+# Initialize the database (~/.cddf/drones.db)
+drone-db init
+
+# Add a drone to the catalog
+drone-db add --manufacturer DJI --model "Mavic 3" --type quadcopter \
+  --remote-id-default --remote-id-wifi --remote-id-ble \
+  --rf-frequency-mhz "2400,5800" --rf-protocol OcuSync --num-rotors 4
+
+# List all drones (filter with --manufacturer, --type, --remote-id-only)
+drone-db list
+drone-db list --remote-id-only --json
+
+# Search across all fields
+drone-db search DJI
+
+# Show details for a specific drone
+drone-db show 1 --json
+
+# Update or remove entries
+drone-db update 1 --weight-g 895
+drone-db remove 1 --force
 ```
 
 **Testing / simulation**
