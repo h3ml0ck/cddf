@@ -1,7 +1,8 @@
 import base64
-import types
-import pytest
 import sys
+import types
+
+import pytest
 
 # Import the module under test (new structure)
 import drone_tools.drone_description as desc
@@ -50,6 +51,7 @@ def reset_capture(monkeypatch):
 
     # Patch openai.OpenAI constructor to our default fake
     import openai
+
     monkeypatch.setattr(openai, "OpenAI", _FakeClient)
     yield
     _fake_capture = {}

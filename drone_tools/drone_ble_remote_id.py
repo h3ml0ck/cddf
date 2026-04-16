@@ -13,12 +13,12 @@ import argparse
 import asyncio
 import sys
 import time
-from typing import Dict, Optional
 
 try:
     from bleak import BleakScanner
     from bleak.backends.device import BLEDevice
     from bleak.backends.scanner import AdvertisementData
+
     BLEAK_AVAILABLE = True
 except ImportError:
     BLEAK_AVAILABLE = False
@@ -27,15 +27,15 @@ from drone_tools.drone_wifi_remote_id import (
     REMOTE_ID_MESSAGE_TYPES,
     parse_basic_id,
     parse_location_vector,
-    parse_self_id,
     parse_operator_id,
+    parse_self_id,
 )
 
 # BLE Remote ID service UUID (ASTM F3411, 16-bit UUID 0xFFFA)
 REMOTE_ID_SERVICE_UUID = "0000fffa-0000-1000-8000-00805f9b34fb"
 
 
-def parse_ble_service_data(service_data: bytes) -> Optional[Dict]:
+def parse_ble_service_data(service_data: bytes) -> dict | None:
     """Parse ASTM F3411 Remote ID payload from BLE service data.
 
     The first byte is a header: bits 3:0 = message type, bits 7:4 = protocol
@@ -48,19 +48,19 @@ def parse_ble_service_data(service_data: bytes) -> Optional[Dict]:
     msg_type = service_data[0] & 0x0F
     msg_data = service_data[1:]
 
-    result: Dict = {
+    result: dict = {
         "message_type": REMOTE_ID_MESSAGE_TYPES.get(msg_type, f"Unknown({msg_type})"),
         "raw_type": msg_type,
         "data_length": len(msg_data),
     }
 
-    if msg_type == 0 and len(msg_data) >= 22:      # Basic ID
+    if msg_type == 0 and len(msg_data) >= 22:  # Basic ID
         result.update(parse_basic_id(msg_data))
-    elif msg_type == 1 and len(msg_data) >= 25:    # Location/Vector
+    elif msg_type == 1 and len(msg_data) >= 25:  # Location/Vector
         result.update(parse_location_vector(msg_data))
-    elif msg_type == 3 and len(msg_data) >= 1:     # Self ID
+    elif msg_type == 3 and len(msg_data) >= 1:  # Self ID
         result.update(parse_self_id(msg_data))
-    elif msg_type == 5 and len(msg_data) >= 20:    # Operator ID
+    elif msg_type == 5 and len(msg_data) >= 20:  # Operator ID
         result.update(parse_operator_id(msg_data))
     else:
         result["raw_data"] = msg_data.hex()
@@ -71,7 +71,7 @@ def parse_ble_service_data(service_data: bytes) -> Optional[Dict]:
 def _make_callback(verbose: bool):
     """Return a BleakScanner detection callback."""
 
-    def callback(device: "BLEDevice", adv: "AdvertisementData") -> None:
+    def callback(device: BLEDevice, adv: AdvertisementData) -> None:
         for uuid, data in adv.service_data.items():
             if uuid.lower() != REMOTE_ID_SERVICE_UUID:
                 continue
@@ -90,7 +90,7 @@ def _make_callback(verbose: bool):
     return callback
 
 
-async def capture_ble_remote_id(timeout: Optional[float] = None, verbose: bool = False) -> None:
+async def capture_ble_remote_id(timeout: float | None = None, verbose: bool = False) -> None:
     """Scan for BLE Remote ID advertisements.
 
     Args:
@@ -98,9 +98,7 @@ async def capture_ble_remote_id(timeout: Optional[float] = None, verbose: bool =
         verbose: Print raw hex alongside decoded fields.
     """
     if not BLEAK_AVAILABLE:
-        raise RuntimeError(
-            "bleak is required but not installed. Install with: pip install bleak"
-        )
+        raise RuntimeError("bleak is required but not installed. Install with: pip install bleak")
 
     print("Starting BLE Remote ID capture...")
     print("Listening for ASTM F3411 Remote ID advertisements (UUID 0xFFFA)...")
@@ -115,16 +113,15 @@ async def capture_ble_remote_id(timeout: Optional[float] = None, verbose: bool =
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Capture drone Remote ID over BLE (ASTM F3411, UUID 0xFFFA)"
-    )
+    parser = argparse.ArgumentParser(description="Capture drone Remote ID over BLE (ASTM F3411, UUID 0xFFFA)")
     parser.add_argument(
         "--timeout",
         type=float,
         help="Stop after this many seconds (default: run indefinitely)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Print raw hex alongside decoded fields",
     )

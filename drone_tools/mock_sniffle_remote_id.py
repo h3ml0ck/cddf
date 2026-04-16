@@ -13,41 +13,39 @@ import struct
 import sys
 import time
 from datetime import datetime
-from typing import Dict, List
-
 
 # Sample drone data for realistic simulation
 SAMPLE_DRONES = [
     {
-        'uas_id': 'DJI-MAVIC-ABC123',
-        'ua_type': 4,  # VTOL
-        'operator_id': 'FAA123456789',
-        'description': 'Survey Mission Alpha',
-        'base_lat': 37.7749,
-        'base_lon': -122.4194,
-        'base_alt': 150.0,
-        'mac_address': 'AA:BB:CC:DD:EE:F1'
+        "uas_id": "DJI-MAVIC-ABC123",
+        "ua_type": 4,  # VTOL
+        "operator_id": "FAA123456789",
+        "description": "Survey Mission Alpha",
+        "base_lat": 37.7749,
+        "base_lon": -122.4194,
+        "base_alt": 150.0,
+        "mac_address": "AA:BB:CC:DD:EE:F1",
     },
     {
-        'uas_id': 'AUTEL-EVO-XYZ789',
-        'ua_type': 4,  # VTOL
-        'operator_id': 'FAA987654321',
-        'description': 'Infrastructure Inspection',
-        'base_lat': 37.7849,
-        'base_lon': -122.4294,
-        'base_alt': 200.0,
-        'mac_address': 'AA:BB:CC:DD:EE:F2'
+        "uas_id": "AUTEL-EVO-XYZ789",
+        "ua_type": 4,  # VTOL
+        "operator_id": "FAA987654321",
+        "description": "Infrastructure Inspection",
+        "base_lat": 37.7849,
+        "base_lon": -122.4294,
+        "base_alt": 200.0,
+        "mac_address": "AA:BB:CC:DD:EE:F2",
     },
     {
-        'uas_id': 'PARROT-ANAFI-DEF456',
-        'ua_type': 4,  # VTOL
-        'operator_id': 'FAA555666777',
-        'description': 'Real Estate Photography',
-        'base_lat': 37.7649,
-        'base_lon': -122.4094,
-        'base_alt': 120.0,
-        'mac_address': 'AA:BB:CC:DD:EE:F3'
-    }
+        "uas_id": "PARROT-ANAFI-DEF456",
+        "ua_type": 4,  # VTOL
+        "operator_id": "FAA555666777",
+        "description": "Real Estate Photography",
+        "base_lat": 37.7649,
+        "base_lon": -122.4094,
+        "base_alt": 120.0,
+        "mac_address": "AA:BB:CC:DD:EE:F3",
+    },
 ]
 
 # ASTM F3411 Remote ID message types
@@ -57,34 +55,34 @@ MESSAGE_TYPES = {
     0x2: "Authentication",
     0x3: "Self ID",
     0x4: "System",
-    0x5: "Operator ID"
+    0x5: "Operator ID",
 }
 
 
 class MockSniffleDrone:
     """Represents a simulated drone with Remote ID broadcasts."""
 
-    def __init__(self, drone_data: Dict):
-        self.uas_id = drone_data['uas_id']
-        self.ua_type = drone_data['ua_type']
-        self.operator_id = drone_data['operator_id']
-        self.description = drone_data['description']
-        self.mac_address = drone_data['mac_address']
+    def __init__(self, drone_data: dict):
+        self.uas_id = drone_data["uas_id"]
+        self.ua_type = drone_data["ua_type"]
+        self.operator_id = drone_data["operator_id"]
+        self.description = drone_data["description"]
+        self.mac_address = drone_data["mac_address"]
 
         # Initial position and movement
-        self.latitude = drone_data['base_lat'] + random.uniform(-0.001, 0.001)
-        self.longitude = drone_data['base_lon'] + random.uniform(-0.001, 0.001)
-        self.altitude = drone_data['base_alt'] + random.uniform(-20, 20)
+        self.latitude = drone_data["base_lat"] + random.uniform(-0.001, 0.001)
+        self.longitude = drone_data["base_lon"] + random.uniform(-0.001, 0.001)
+        self.altitude = drone_data["base_alt"] + random.uniform(-20, 20)
         self.height = self.altitude - 50  # AGL
 
         # Movement parameters
         self.speed_h = random.uniform(2.0, 15.0)  # m/s horizontal
         self.speed_v = random.uniform(-2.0, 2.0)  # m/s vertical
-        self.direction = random.uniform(0, 360)   # degrees
+        self.direction = random.uniform(0, 360)  # degrees
 
         # Operator position (slightly different from drone)
-        self.op_latitude = drone_data['base_lat'] + random.uniform(-0.0005, 0.0005)
-        self.op_longitude = drone_data['base_lon'] + random.uniform(-0.0005, 0.0005)
+        self.op_latitude = drone_data["base_lat"] + random.uniform(-0.0005, 0.0005)
+        self.op_longitude = drone_data["base_lon"] + random.uniform(-0.0005, 0.0005)
         self.op_altitude = 10.0  # operator on ground
 
         # Timing
@@ -130,8 +128,8 @@ class MockSniffleDrone:
         msg[2] = 1  # ID type (Serial Number)
 
         # UAS ID (20 bytes, null-terminated)
-        uas_id_bytes = self.uas_id.encode('utf-8')[:20]
-        msg[3:3+len(uas_id_bytes)] = uas_id_bytes
+        uas_id_bytes = self.uas_id.encode("utf-8")[:20]
+        msg[3 : 3 + len(uas_id_bytes)] = uas_id_bytes
 
         return bytes(msg)
 
@@ -142,19 +140,19 @@ class MockSniffleDrone:
         msg[1] = 0x01  # Status (airborne)
 
         # Direction (2 bytes, little-endian, degrees * 100)
-        struct.pack_into('<H', msg, 2, int(self.direction * 100))
+        struct.pack_into("<H", msg, 2, int(self.direction * 100))
 
         # Speeds (2 bytes each, little-endian, m/s * 100)
-        struct.pack_into('<H', msg, 4, int(self.speed_h * 100))
-        struct.pack_into('<h', msg, 6, int(self.speed_v * 100))
+        struct.pack_into("<H", msg, 4, int(self.speed_h * 100))
+        struct.pack_into("<h", msg, 6, int(self.speed_v * 100))
 
         # Position (4 bytes each, little-endian, degrees * 1e7)
-        struct.pack_into('<i', msg, 8, int(self.latitude * 1e7))
-        struct.pack_into('<i', msg, 12, int(self.longitude * 1e7))
+        struct.pack_into("<i", msg, 8, int(self.latitude * 1e7))
+        struct.pack_into("<i", msg, 12, int(self.longitude * 1e7))
 
         # Altitudes (2 bytes each, little-endian, meters * 2)
-        struct.pack_into('<h', msg, 16, int(self.altitude * 2))
-        struct.pack_into('<h', msg, 18, int(self.height * 2))
+        struct.pack_into("<h", msg, 16, int(self.altitude * 2))
+        struct.pack_into("<h", msg, 18, int(self.height * 2))
 
         # Accuracy values
         msg[20] = 3  # Vertical accuracy
@@ -164,7 +162,7 @@ class MockSniffleDrone:
 
         # Timestamp (2 bytes, little-endian, deciseconds)
         timestamp_ds = int((time.time() % 3600) * 10)
-        struct.pack_into('<H', msg, 24, timestamp_ds)
+        struct.pack_into("<H", msg, 24, timestamp_ds)
 
         return bytes(msg)
 
@@ -175,8 +173,8 @@ class MockSniffleDrone:
         msg[1] = 0x0  # Description type (Text)
 
         # Description (23 bytes, null-terminated)
-        desc_bytes = self.description.encode('utf-8')[:23]
-        msg[2:2+len(desc_bytes)] = desc_bytes
+        desc_bytes = self.description.encode("utf-8")[:23]
+        msg[2 : 2 + len(desc_bytes)] = desc_bytes
 
         return bytes(msg)
 
@@ -187,8 +185,8 @@ class MockSniffleDrone:
         msg[1] = 1  # Operator ID type (CAA Registration)
 
         # Operator ID (20 bytes, null-terminated)
-        op_id_bytes = self.operator_id.encode('utf-8')[:20]
-        msg[2:2+len(op_id_bytes)] = op_id_bytes
+        op_id_bytes = self.operator_id.encode("utf-8")[:20]
+        msg[2 : 2 + len(op_id_bytes)] = op_id_bytes
 
         return bytes(msg)
 
@@ -199,24 +197,24 @@ class MockSniffleDrone:
         msg[1] = 0x01  # Operator status (operational)
 
         # Operator position (4 bytes each, little-endian, degrees * 1e7)
-        struct.pack_into('<i', msg, 2, int(self.op_latitude * 1e7))
-        struct.pack_into('<i', msg, 6, int(self.op_longitude * 1e7))
+        struct.pack_into("<i", msg, 2, int(self.op_latitude * 1e7))
+        struct.pack_into("<i", msg, 6, int(self.op_longitude * 1e7))
 
         # Area parameters
-        struct.pack_into('<H', msg, 10, 1)    # Area count
-        struct.pack_into('<H', msg, 12, 500)  # Area radius (meters)
-        struct.pack_into('<h', msg, 14, int(400 * 2))  # Area ceiling (meters * 2)
-        struct.pack_into('<h', msg, 16, int(0 * 2))    # Area floor (meters * 2)
+        struct.pack_into("<H", msg, 10, 1)  # Area count
+        struct.pack_into("<H", msg, 12, 500)  # Area radius (meters)
+        struct.pack_into("<h", msg, 14, int(400 * 2))  # Area ceiling (meters * 2)
+        struct.pack_into("<h", msg, 16, int(0 * 2))  # Area floor (meters * 2)
 
         msg[18] = 1  # Category (Open)
         msg[19] = 1  # Class value
 
         # Operator altitude (2 bytes, little-endian, meters * 2)
-        struct.pack_into('<h', msg, 20, int(self.op_altitude * 2))
+        struct.pack_into("<h", msg, 20, int(self.op_altitude * 2))
 
         # Timestamp (2 bytes, little-endian, deciseconds)
         timestamp_ds = int((time.time() % 3600) * 10)
-        struct.pack_into('<H', msg, 22, timestamp_ds)
+        struct.pack_into("<H", msg, 22, timestamp_ds)
 
         return bytes(msg)
 
@@ -224,7 +222,7 @@ class MockSniffleDrone:
 class MockSniffle:
     """Mock Sniffle BLE sniffer for Remote ID simulation."""
 
-    def __init__(self, verbose: bool = False, output_file: str = None):
+    def __init__(self, verbose: bool = False, output_file: str | None = None):
         self.verbose = verbose
         self.output_file = output_file
         # Create all sample drones
@@ -238,11 +236,11 @@ class MockSniffle:
     def format_hex_dump(self, data: bytes) -> str:
         """Format data as hex dump similar to Sniffle output."""
         hex_str = data.hex().upper()
-        return ' '.join(hex_str[i:i+2] for i in range(0, len(hex_str), 2))
+        return " ".join(hex_str[i : i + 2] for i in range(0, len(hex_str), 2))
 
     def generate_sniffle_packet_output(self, drone: MockSniffleDrone, message_data: bytes, rssi: int) -> str:
         """Generate Sniffle-style packet output."""
-        timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]  # millisecond precision
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]  # millisecond precision
 
         # Sniffle packet format
         lines = []
@@ -250,7 +248,7 @@ class MockSniffle:
         lines.append(f"  Advertiser: {drone.mac_address} (Random)")
         lines.append(f"  RSSI: {rssi} dBm")
         lines.append(f"  UAS ID: {drone.uas_id}")
-        lines.append(f"  Service UUID: FFFA (Remote ID)")
+        lines.append("  Service UUID: FFFA (Remote ID)")
         lines.append(f"  Service Data ({len(message_data)} bytes): {self.format_hex_dump(message_data)}")
 
         if self.verbose:
@@ -261,16 +259,16 @@ class MockSniffle:
             # Add parsed data for some message types
             if msg_type == 0x0:  # Basic ID
                 if len(message_data) >= 23:
-                    uas_id = message_data[3:23].rstrip(b'\x00').decode('utf-8', errors='ignore')
+                    uas_id = message_data[3:23].rstrip(b"\x00").decode("utf-8", errors="ignore")
                     lines.append(f"  UAS ID: {uas_id}")
             elif msg_type == 0x1:  # Location
                 if len(message_data) >= 25:
-                    lat = struct.unpack('<i', message_data[8:12])[0] / 1e7
-                    lon = struct.unpack('<i', message_data[12:16])[0] / 1e7
-                    alt = struct.unpack('<h', message_data[16:18])[0] / 2.0
+                    lat = struct.unpack("<i", message_data[8:12])[0] / 1e7
+                    lon = struct.unpack("<i", message_data[12:16])[0] / 1e7
+                    alt = struct.unpack("<h", message_data[16:18])[0] / 2.0
                     lines.append(f"  Position: {lat:.6f}, {lon:.6f} @ {alt:.1f}m")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def generate_wireshark_style_output(self, drone: MockSniffleDrone, message_data: bytes, rssi: int) -> str:
         """Generate Wireshark-style decoded output."""
@@ -282,13 +280,13 @@ class MockSniffle:
 
         if self.verbose:
             msg_type = message_data[0] if len(message_data) > 0 else 0
-            msg_name = MESSAGE_TYPES.get(msg_type, f"Unknown")
+            msg_name = MESSAGE_TYPES.get(msg_type, "Unknown")
             lines.append(f"        Bluetooth Low Energy Remote ID: {msg_name}")
             lines.append(f"        Data: {self.format_hex_dump(message_data)}")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def run_simulation(self, duration: int = None, output_format: str = 'sniffle'):
+    def run_simulation(self, duration: int | None = None, output_format: str = "sniffle"):
         """Run the Remote ID simulation."""
         print("Sniffle BLE 5.0 sniffer", file=sys.stderr)
         print("Drone Remote ID capture starting...", file=sys.stderr)
@@ -299,7 +297,7 @@ class MockSniffle:
         print("Press Ctrl+C to stop\n", file=sys.stderr)
 
         start_time = time.time()
-        out = open(self.output_file, 'w') if self.output_file else None
+        out = open(self.output_file, "w") if self.output_file else None
 
         try:
             while True:
@@ -333,13 +331,13 @@ class MockSniffle:
                 rssi = random.randint(-80, -30)
 
                 # Format output
-                if output_format == 'wireshark':
+                if output_format == "wireshark":
                     output = self.generate_wireshark_style_output(drone, message_data, rssi)
                 else:  # sniffle format
                     output = self.generate_sniffle_packet_output(drone, message_data, rssi)
 
                 if out:
-                    out.write(output + '\n\n')
+                    out.write(output + "\n\n")
                     out.flush()
                 else:
                     print(output)
@@ -370,28 +368,14 @@ Examples:
   python mock_sniffle_remote_id.py -t 30              # Run for 30 seconds
   python mock_sniffle_remote_id.py -v                 # Verbose output
   python mock_sniffle_remote_id.py --format wireshark # Wireshark-style output
-        """
+        """,
     )
 
+    parser.add_argument("-t", "--time", type=int, help="Capture duration in seconds (default: infinite)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show verbose packet decoding")
+    parser.add_argument("-o", "--output", help="Write captured packets to this file instead of stdout")
     parser.add_argument(
-        "-t", "--time",
-        type=int,
-        help="Capture duration in seconds (default: infinite)"
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Show verbose packet decoding"
-    )
-    parser.add_argument(
-        "-o", "--output",
-        help="Write captured packets to this file instead of stdout"
-    )
-    parser.add_argument(
-        "--format",
-        choices=['sniffle', 'wireshark'],
-        default='sniffle',
-        help="Output format style (default: sniffle)"
+        "--format", choices=["sniffle", "wireshark"], default="sniffle", help="Output format style (default: sniffle)"
     )
 
     args = parser.parse_args()

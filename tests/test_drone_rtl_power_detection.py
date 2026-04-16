@@ -1,30 +1,35 @@
-import types
 import subprocess
+import types
+
 import pytest
 
 import drone_tools.drone_rtl_power_detection as rtl
-
 
 # ---------------------------
 # _parse_rtl_power_output
 # ---------------------------
 
+
 def test_parse_detects_bin_above_threshold():
     # Header, then a valid rtl_power CSV line: fields 0..5 are metadata, 6+ are power bins
-    out = "\n".join([
-        "# rtl_power output",
-        "2025-10-01,12:00:00,2400000000,2483000000,1000000,10,-35,-32,-20,-40",
-    ])
+    out = "\n".join(
+        [
+            "# rtl_power output",
+            "2025-10-01,12:00:00,2400000000,2483000000,1000000,10,-35,-32,-20,-40",
+        ]
+    )
     assert rtl._parse_rtl_power_output(out, threshold_db=-30.0) is True  # -20 > -30
 
 
 def test_parse_ignores_comments_and_short_lines_returns_false():
-    out = "\n".join([
-        "# comment line",
-        "too,short",                           # ignored (len(parts) < 7)
-        "2025,12:00,1,1,1,1",                  # still too short
-        "2025,12:00,1,1,1,1, -50, -55, -60",   # all below threshold
-    ])
+    out = "\n".join(
+        [
+            "# comment line",
+            "too,short",  # ignored (len(parts) < 7)
+            "2025,12:00,1,1,1,1",  # still too short
+            "2025,12:00,1,1,1,1, -50, -55, -60",  # all below threshold
+        ]
+    )
     assert rtl._parse_rtl_power_output(out, threshold_db=-30.0) is False
 
 
@@ -37,6 +42,7 @@ def test_parse_handles_nonfloat_values_gracefully():
 # ---------------------------
 # detect_rtl_power (mock subprocess)
 # ---------------------------
+
 
 def test_detect_rtl_power_true(monkeypatch):
     def fake_run(cmd, check, capture_output, text, timeout):
@@ -58,14 +64,18 @@ def test_detect_rtl_power_false(monkeypatch):
     assert rtl.detect_rtl_power("2400M:2483M:1M", threshold_db=-30.0, integration=2.0) is False
 
 
-@pytest.mark.parametrize("exc", [
-    subprocess.CalledProcessError(returncode=1, cmd=["rtl_power"]),
-    subprocess.TimeoutExpired(cmd=["rtl_power"], timeout=10),
-    FileNotFoundError("rtl_power not found"),
-])
+@pytest.mark.parametrize(
+    "exc",
+    [
+        subprocess.CalledProcessError(returncode=1, cmd=["rtl_power"]),
+        subprocess.TimeoutExpired(cmd=["rtl_power"], timeout=10),
+        FileNotFoundError("rtl_power not found"),
+    ],
+)
 def test_detect_rtl_power_raises_on_errors(monkeypatch, exc):
     def fake_run(*a, **k):
         raise exc
+
     monkeypatch.setattr(rtl.subprocess, "run", fake_run)
     with pytest.raises(RuntimeError, match="rtl_power execution failed"):
         rtl.detect_rtl_power("2400M:2483M:1M")
@@ -74,6 +84,7 @@ def test_detect_rtl_power_raises_on_errors(monkeypatch, exc):
 # ---------------------------
 # main() CLI
 # ---------------------------
+
 
 def test_main_success_true(monkeypatch, capsys):
     monkeypatch.setattr(rtl, "detect_rtl_power", lambda *a, **k: True)
@@ -94,6 +105,7 @@ def test_main_success_false(monkeypatch, capsys):
 def test_main_handles_exception(monkeypatch, capsys):
     def boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(rtl, "detect_rtl_power", boom)
     ret = rtl.main(["--range", "2400M:2483M:1M"])
     captured = capsys.readouterr()

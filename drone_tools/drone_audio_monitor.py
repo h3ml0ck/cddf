@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import Tuple
 
 import numpy as np
 
@@ -71,7 +70,7 @@ def monitor_audio(
     device: str | int | None,
     samplerate: int,
     block_duration: float,
-    freq_range: Tuple[float, float],
+    freq_range: tuple[float, float],
     threshold: float,
     channels: int,
     latency: float | None,
@@ -80,9 +79,7 @@ def monitor_audio(
 ) -> None:
     """Continuously monitor the selected device for drone sounds."""
     if sd is None:
-        raise RuntimeError(
-            "sounddevice is required but not installed. Install with: pip install sounddevice"
-        )
+        raise RuntimeError("sounddevice is required but not installed. Install with: pip install sounddevice")
 
     # Determine blocksize: CLI override > derived from duration; nudge to power-of-two for FFT perf
     if blocksize_cli and blocksize_cli > 0:

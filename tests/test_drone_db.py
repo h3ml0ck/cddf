@@ -111,17 +111,28 @@ def test_remove_drone_missing_returns_false(dbpath):
 
 def _seed(dbpath):
     db.add_drone(
-        manufacturer="DJI", model="Mavic 3", drone_type="quadcopter",
-        remote_id_default=True, remote_id_wifi=True, db_path=dbpath,
-    )
-    db.add_drone(
-        manufacturer="DJI", model="Mini 4 Pro", drone_type="quadcopter",
-        remote_id_default=True, remote_id_wifi=True, remote_id_ble=True,
+        manufacturer="DJI",
+        model="Mavic 3",
+        drone_type="quadcopter",
+        remote_id_default=True,
+        remote_id_wifi=True,
         db_path=dbpath,
     )
     db.add_drone(
-        manufacturer="Skydio", model="X10", drone_type="quadcopter",
-        remote_id_default=False, db_path=dbpath,
+        manufacturer="DJI",
+        model="Mini 4 Pro",
+        drone_type="quadcopter",
+        remote_id_default=True,
+        remote_id_wifi=True,
+        remote_id_ble=True,
+        db_path=dbpath,
+    )
+    db.add_drone(
+        manufacturer="Skydio",
+        model="X10",
+        drone_type="quadcopter",
+        remote_id_default=False,
+        db_path=dbpath,
     )
 
 
@@ -140,7 +151,10 @@ def test_list_drones_filter_manufacturer(dbpath):
 def test_list_drones_filter_type(dbpath):
     _seed(dbpath)
     db.add_drone(
-        manufacturer="WingCopter", model="198", drone_type="vtol", db_path=dbpath,
+        manufacturer="WingCopter",
+        model="198",
+        drone_type="vtol",
+        db_path=dbpath,
     )
     result = db.list_drones(drone_type="vtol", db_path=dbpath)
     assert len(result) == 1
@@ -162,7 +176,9 @@ def test_search_drones_matches_model(dbpath):
 
 def test_search_drones_matches_notes(dbpath):
     db.add_drone(
-        manufacturer="Autel", model="Evo II", notes="thermal camera",
+        manufacturer="Autel",
+        model="Evo II",
+        notes="thermal camera",
         db_path=dbpath,
     )
     result = db.search_drones("thermal", db_path=dbpath)
@@ -188,11 +204,19 @@ def test_main_init_creates_db(tmp_path, capsys):
 def test_main_add_and_list(tmp_path, capsys):
     path = tmp_path / "cli.db"
     db.main(["--db", str(path), "init"])
-    ret = db.main([
-        "--db", str(path), "add",
-        "--manufacturer", "DJI", "--model", "Mavic 3",
-        "--remote-id-default", "--remote-id-wifi",
-    ])
+    ret = db.main(
+        [
+            "--db",
+            str(path),
+            "add",
+            "--manufacturer",
+            "DJI",
+            "--model",
+            "Mavic 3",
+            "--remote-id-default",
+            "--remote-id-wifi",
+        ]
+    )
     assert ret == 0
     out = capsys.readouterr().out
     assert "Added drone #1" in out
@@ -207,10 +231,17 @@ def test_main_add_and_list(tmp_path, capsys):
 def test_main_show_json(tmp_path, capsys):
     path = tmp_path / "cli.db"
     db.main(["--db", str(path), "init"])
-    db.main([
-        "--db", str(path), "add",
-        "--manufacturer", "Skydio", "--model", "X10",
-    ])
+    db.main(
+        [
+            "--db",
+            str(path),
+            "add",
+            "--manufacturer",
+            "Skydio",
+            "--model",
+            "X10",
+        ]
+    )
     capsys.readouterr()  # discard prior output
     ret = db.main(["--db", str(path), "show", "1", "--json"])
     assert ret == 0
