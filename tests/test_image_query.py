@@ -1,4 +1,5 @@
 import types
+
 import pytest
 
 import drone_tools.image_query as iq
@@ -34,6 +35,7 @@ def reset_capture(monkeypatch):
     global _fake_capture
     _fake_capture = {}
     import openai
+
     monkeypatch.setattr(openai, "OpenAI", _FakeClient)
     yield
     _fake_capture = {}

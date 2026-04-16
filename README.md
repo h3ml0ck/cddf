@@ -277,6 +277,9 @@ Full Raspberry Pi provisioning — installs Python dependencies, RTL-SDR/HackRF 
 ```bash
 cd ansible
 
+# First-time setup: copy the example inventory and edit hosts
+cp inventory.ini.example inventory.ini
+
 # Test connectivity
 ansible all -i inventory.ini -m ping
 

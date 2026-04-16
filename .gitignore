@@ -6,3 +6,13 @@ __pycache__/
 build/
 *.egg-info/
 .pytest_cache
+.coverage
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets / host lists — copy the *.example versions
+.env
+ansible/inventory.ini
+kismet-queuer/ansible/inventory
+kismet-queuer/config/config.ini
+kismet-queuer/ansible/roles/kismet-queuer/vars/credentials.yml

@@ -1,5 +1,6 @@
 import os
 import sys
+
 import openai
 
 
@@ -16,11 +17,12 @@ def query_image(prompt: str, n: int = 1, size: str = "1024x1024") -> list:
     """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise EnvironmentError("OPENAI_API_KEY environment variable not set")
+        raise OSError("OPENAI_API_KEY environment variable not set")
 
     client = openai.OpenAI(api_key=api_key)
     response = client.images.generate(prompt=prompt, n=n, size=size)
     return [image.url for image in response.data]
+
 
 def main(argv=None):
     argv = argv or sys.argv[1:]

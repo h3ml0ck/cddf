@@ -1,13 +1,15 @@
-import os
 import io
-import numpy as np
-import pytest
+import os
 
 # Use a non-interactive backend before importing the module that uses pyplot so we dont need a display
 import matplotlib
+import numpy as np
+import pytest
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+
 import drone_tools.rtl_power_visualization as viz
 
 
