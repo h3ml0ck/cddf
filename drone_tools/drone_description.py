@@ -1,17 +1,18 @@
+import base64
 import os
 import sys
-import base64
 from pathlib import Path
+
 import openai
 
-_ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+_ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 _EXTENSION_TO_MIME = {
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
 }
 
 
@@ -22,8 +23,7 @@ def _validate_image_path(image_path: str) -> None:
         raise ValueError(f"Image path is not a regular file: {image_path!r}")
     if p.suffix.lower() not in _ALLOWED_IMAGE_EXTENSIONS:
         raise ValueError(
-            f"Unsupported image extension {p.suffix!r}. "
-            f"Allowed: {', '.join(sorted(_ALLOWED_IMAGE_EXTENSIONS))}"
+            f"Unsupported image extension {p.suffix!r}. Allowed: {', '.join(sorted(_ALLOWED_IMAGE_EXTENSIONS))}"
         )
 
 
@@ -39,10 +39,10 @@ def describe_drone(image_path: str, prompt: str = "What type of drone is in this
     """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise EnvironmentError("OPENAI_API_KEY environment variable not set")
+        raise OSError("OPENAI_API_KEY environment variable not set")
 
     ext = Path(image_path).suffix.lower()
-    mime_type = _EXTENSION_TO_MIME.get(ext, 'image/jpeg')
+    mime_type = _EXTENSION_TO_MIME.get(ext, "image/jpeg")
 
     with open(image_path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("ascii")
@@ -61,7 +61,8 @@ def describe_drone(image_path: str, prompt: str = "What type of drone is in this
         ],
         max_tokens=100,
     )
-    return response.choices[0].message.content.strip()
+    content = response.choices[0].message.content
+    return content.strip() if content else ""
 
 
 def main(argv=None):

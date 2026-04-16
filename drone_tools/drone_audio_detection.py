@@ -2,7 +2,6 @@
 
 import argparse
 import sys
-from typing import Tuple
 
 import numpy as np
 import soundfile as sf
@@ -10,10 +9,10 @@ import soundfile as sf
 
 def detect_drone_sound(
     audio_path: str,
-    freq_range: Tuple[float, float] = (100.0, 700.0),
+    freq_range: tuple[float, float] = (100.0, 700.0),
     threshold: float = 0.2,
-    block_seconds: float = 2.0, #Increase block_seconds (e.g., 3–5 s) for smoother spectra; decrease for faster responsiveness.
-    overlap: float = 0.5, #Set overlap=0.0 for speed, 0.5 for better frequency stability.
+    block_seconds: float = 2.0,  # Increase block_seconds (e.g., 3–5 s) for smoother spectra; decrease for faster responsiveness.
+    overlap: float = 0.5,  # Set overlap=0.0 for speed, 0.5 for better frequency stability.
 ) -> bool:
     """Detect whether an audio file contains a drone-like sound.
 
@@ -53,9 +52,7 @@ def detect_drone_sound(
 
     # Streaming read
     with sf.SoundFile(audio_path, "r") as f:
-        for block in sf.blocks(
-            f, blocksize=blocksize, overlap=hop_overlap, always_2d=True
-        ):
+        for block in sf.blocks(f, blocksize=blocksize, overlap=hop_overlap, always_2d=True):
             # block shape: (frames, channels)
             x = block.astype(np.float32)
             if x.size == 0:
@@ -78,7 +75,7 @@ def detect_drone_sound(
 
             # FFT of this block
             S = np.fft.rfft(xw)
-            mag2 = (np.abs(S) ** 2)
+            mag2 = np.abs(S) ** 2
 
             # Convert to (approx) energy density normalization (optional)
             # We only need relative energies, so a consistent scale is fine.
@@ -122,9 +119,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        detected = detect_drone_sound(
-            args.audio_path, (args.low, args.high), args.threshold
-        )
+        detected = detect_drone_sound(args.audio_path, (args.low, args.high), args.threshold)
     except Exception as exc:
         print(f"Error processing audio: {exc}", file=sys.stderr)
         return 1

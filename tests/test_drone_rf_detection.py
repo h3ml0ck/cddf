@@ -1,15 +1,16 @@
 import argparse
 import math
 import types
+
 import numpy as np
 import pytest
 
 import drone_tools.drone_rf_detection as rf
 
-
 # ---------------------------
 # parse/limit helpers
 # ---------------------------
+
 
 @pytest.mark.parametrize(
     "s,expected",
@@ -55,6 +56,7 @@ def test_within_rate_limits(r, ok):
 # Mock HackRF
 # ---------------------------
 
+
 class MockHackRf:
     """
     Minimal context-managed mock of the HackRF API used by the module.
@@ -64,6 +66,7 @@ class MockHackRf:
       * If tuned to any remote-ID frequency (in rid_set), returns near-zero power bytes.
       * Otherwise returns higher-power bytes.
     """
+
     def __init__(self, rid_set=None, raise_on_open=False):
         self.rid_set = set(rid_set or [])
         self.raise_on_open = raise_on_open
@@ -118,6 +121,7 @@ class MockHackRf:
 # _measure_power tests
 # ---------------------------
 
+
 def test_measure_power_uses_settle_and_returns_dbfs(monkeypatch):
     # Create a mock where rid_set empty; tuned freq not in rid set => high power
     mock = MockHackRf(rid_set=[])
@@ -140,6 +144,7 @@ def test_measure_power_uses_settle_and_returns_dbfs(monkeypatch):
 # ---------------------------
 # detect_drone_without_remote_id tests
 # ---------------------------
+
 
 def test_detect_returns_true_when_power_high_and_no_rid(monkeypatch, capsys):
     # rid power will be very low (mock returns zeros on rid freq)
@@ -199,20 +204,17 @@ def test_detect_validation_errors_when_no_lib_or_bad_inputs(monkeypatch):
 
     # Case 4: bad sample rate
     with pytest.raises(ValueError, match="Sample rate out of range"):
-        rf.detect_drone_without_remote_id(
-            freqs=[2.4e9], remote_id_freqs=[2.433e9], sample_rate=1e6
-        )
+        rf.detect_drone_without_remote_id(freqs=[2.4e9], remote_id_freqs=[2.433e9], sample_rate=1e6)
 
     # Case 5: frequency out of range
     with pytest.raises(ValueError, match="out of HackRF range"):
-        rf.detect_drone_without_remote_id(
-            freqs=[9e9], remote_id_freqs=[2.433e9], sample_rate=2e6
-        )
+        rf.detect_drone_without_remote_id(freqs=[9e9], remote_id_freqs=[2.433e9], sample_rate=2e6)
 
 
 # ---------------------------
 # main() CLI tests
 # ---------------------------
+
 
 def test_main_list_devices_when_library_missing(monkeypatch, capsys):
     monkeypatch.setattr(rf, "HackRf", None)
@@ -236,15 +238,23 @@ def test_main_detection_success_true(monkeypatch, capsys):
     rid = [2.433e9]
     monkeypatch.setattr(rf, "HackRf", lambda: MockHackRf(rid_set=rid))
 
-    ret = rf.main([
-        "--freq", "2.4G",
-        "--remote-id-freq", "2.433G",
-        "--threshold", "-40",
-        "--sample-rate", "2M",
-        "--duration", "0.001",
-        "--settle-time", "0",
-        "-q"
-    ])
+    ret = rf.main(
+        [
+            "--freq",
+            "2.4G",
+            "--remote-id-freq",
+            "2.433G",
+            "--threshold",
+            "-40",
+            "--sample-rate",
+            "2M",
+            "--duration",
+            "0.001",
+            "--settle-time",
+            "0",
+            "-q",
+        ]
+    )
     captured = capsys.readouterr()
     assert ret == 0
     assert "Drone without remote ID detected" in captured.out
@@ -255,13 +265,7 @@ def test_main_detection_success_false(monkeypatch, capsys):
     monkeypatch.setattr(rf, "HackRf", lambda: MockHackRf(rid_set=[2.433e9]))
     monkeypatch.setattr(rf, "_measure_power", lambda *a, **k: -100.0)
 
-    ret = rf.main([
-        "--freq", "2.4G",
-        "--remote-id-freq", "2.433G",
-        "--sample-rate", "2M",
-        "--duration", "0.001",
-        "-q"
-    ])
+    ret = rf.main(["--freq", "2.4G", "--remote-id-freq", "2.433G", "--sample-rate", "2M", "--duration", "0.001", "-q"])
     captured = capsys.readouterr()
     assert ret == 0
     assert "No drone without remote ID detected" in captured.out

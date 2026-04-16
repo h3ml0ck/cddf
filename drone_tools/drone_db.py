@@ -245,10 +245,7 @@ def _print_table(drones: list[dict[str, Any]], as_json: bool = False) -> None:
             rid.append("BLE")
         rid_str = ",".join(rid) if rid else "-"
         rid_default = "Yes" if d.get("remote_id_default") else "No"
-        print(
-            f"  {d['id']:>4}  {d['manufacturer']:<16} {d['model']:<24} "
-            f"RID: {rid_default:<4} ({rid_str})"
-        )
+        print(f"  {d['id']:>4}  {d['manufacturer']:<16} {d['model']:<24} RID: {rid_default:<4} ({rid_str})")
 
 
 # ---------------------------------------------------------------------------
@@ -257,9 +254,7 @@ def _print_table(drones: list[dict[str, Any]], as_json: bool = False) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Manage the CDDF drone reference database"
-    )
+    parser = argparse.ArgumentParser(description="Manage the CDDF drone reference database")
     parser.add_argument("--db", default=None, help="Path to database file")
     sub = parser.add_subparsers(dest="command")
 
@@ -386,11 +381,21 @@ def main(argv: list[str] | None = None) -> int:
             init_db(db_path=db)
             fields: dict[str, Any] = {}
             for key in (
-                "manufacturer", "model", "drone_type", "weight_g",
-                "max_speed_ms", "max_range_m", "num_rotors",
-                "remote_id_default", "remote_id_wifi", "remote_id_ble",
-                "rf_frequency_mhz", "rf_protocol",
-                "audio_freq_min_hz", "audio_freq_max_hz", "notes",
+                "manufacturer",
+                "model",
+                "drone_type",
+                "weight_g",
+                "max_speed_ms",
+                "max_range_m",
+                "num_rotors",
+                "remote_id_default",
+                "remote_id_wifi",
+                "remote_id_ble",
+                "rf_frequency_mhz",
+                "rf_protocol",
+                "audio_freq_min_hz",
+                "audio_freq_max_hz",
+                "notes",
             ):
                 val = getattr(args, key, None)
                 if val is not None:
@@ -411,9 +416,7 @@ def main(argv: list[str] | None = None) -> int:
                 if d is None:
                     print(f"Drone #{args.id} not found.", file=sys.stderr)
                     return 1
-                answer = input(
-                    f"Remove {d['manufacturer']} {d['model']} (#{args.id})? [y/N] "
-                )
+                answer = input(f"Remove {d['manufacturer']} {d['model']} (#{args.id})? [y/N] ")
                 if answer.lower() != "y":
                     print("Cancelled.")
                     return 0

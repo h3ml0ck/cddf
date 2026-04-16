@@ -6,21 +6,17 @@ import argparse
 import re
 import subprocess
 import sys
-from typing import List
 
 # Strict whitelist pattern for rtl_power frequency range argument.
 # Accepts formats like "2400M:2483M:1M" or "2.4G:2.5G:100k".
-_FREQ_RANGE_RE = re.compile(
-    r"^\d+(\.\d+)?[kKmMgG]?:\d+(\.\d+)?[kKmMgG]?:\d+(\.\d+)?[kKmMgG]?$"
-)
+_FREQ_RANGE_RE = re.compile(r"^\d+(\.\d+)?[kKmMgG]?:\d+(\.\d+)?[kKmMgG]?:\d+(\.\d+)?[kKmMgG]?$")
 
 
 def _validate_freq_range(freq_range: str) -> None:
     """Raise ValueError if *freq_range* is not a safe rtl_power frequency spec."""
     if not _FREQ_RANGE_RE.match(freq_range):
         raise ValueError(
-            f"Invalid frequency range: {freq_range!r}. "
-            "Expected format: start:stop:bin, e.g. '2400M:2483M:1M'"
+            f"Invalid frequency range: {freq_range!r}. Expected format: start:stop:bin, e.g. '2400M:2483M:1M'"
         )
 
 
@@ -49,9 +45,7 @@ def _parse_rtl_power_output(output: str, threshold_db: float) -> bool:
     return False
 
 
-def detect_rtl_power(
-    freq_range: str, threshold_db: float = -30.0, integration: float = 1.0
-) -> bool:
+def detect_rtl_power(freq_range: str, threshold_db: float = -30.0, integration: float = 1.0) -> bool:
     """Run ``rtl_power`` over ``freq_range`` and check for strong signals.
 
     Args:
@@ -67,16 +61,18 @@ def detect_rtl_power(
     cmd = ["rtl_power", "-f", freq_range, "-i", str(integration), "-1"]
     try:
         res = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=10)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:  # pragma: no cover - depends on external tool
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:  # pragma: no cover - depends on external tool
         raise RuntimeError(f"rtl_power execution failed: {exc}") from exc
     return _parse_rtl_power_output(res.stdout, threshold_db)
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
-    parser = argparse.ArgumentParser(
-        description="Detect drone RF signals using rtl_power and an RTL-SDR dongle"
-    )
+    parser = argparse.ArgumentParser(description="Detect drone RF signals using rtl_power and an RTL-SDR dongle")
     parser.add_argument(
         "--range",
         default="2400M:2483M:1M",

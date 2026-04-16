@@ -1,12 +1,13 @@
 import math
+
 import numpy as np
 import pytest
 
 # Import the module under test (new structure)
 import drone_tools.drone_audio_monitor as mon
 
-
 # ---------- helpers ----------
+
 
 def _ensure_sd(monkeypatch):
     """
@@ -16,15 +17,26 @@ def _ensure_sd(monkeypatch):
     """
     if getattr(mon, "sd", None) is not None:
         return  # already present (real or stub)
+
     class _SDStub:
         class InputStream:
-            def __init__(self, **kwargs): pass
-            def __enter__(self): return self
-            def __exit__(self, exc_type, exc, tb): return False
+            def __init__(self, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
         @staticmethod
-        def sleep(ms): pass
+        def sleep(ms):
+            pass
+
         @staticmethod
-        def query_devices(): return "FAKE_DEVICES"
+        def query_devices():
+            return "FAKE_DEVICES"
+
     monkeypatch.setattr(mon, "sd", _SDStub())
 
 
@@ -39,9 +51,11 @@ def _sine_block(freq, sr, nframes, amp=0.9, channels=1, dtype=np.float32):
 
 class _TimeSeq:
     """Return successive timestamps from a sequence."""
+
     def __init__(self, seq):
         self.seq = list(seq)
         self.i = 0
+
     def __call__(self):
         if self.i < len(self.seq):
             v = self.seq[self.i]
@@ -55,6 +69,7 @@ class MockInputStream:
     Minimal mock for sounddevice.InputStream.
     Calls the provided callback a couple of times on __enter__.
     """
+
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.callback = kwargs["callback"]
@@ -93,15 +108,19 @@ class MockInputStreamOutOfBand(MockInputStream):
 
 # ---------- unit tests for helpers ----------
 
-@pytest.mark.parametrize("n,expected", [
-    (0, 1),
-    (1, 1),
-    (2, 2),
-    (3, 4),
-    (7, 8),
-    (16, 16),
-    (17, 16),  # nearest (via round) -> 16
-])
+
+@pytest.mark.parametrize(
+    "n,expected",
+    [
+        (0, 1),
+        (1, 1),
+        (2, 2),
+        (3, 4),
+        (7, 8),
+        (16, 16),
+        (17, 16),  # nearest (via round) -> 16
+    ],
+)
 def test_nearest_pow2(n, expected):
     assert mon._nearest_pow2(n) == expected
 
@@ -149,6 +168,7 @@ def test_detect_block_numpy_fft_true_and_false(monkeypatch):
 
 # ---------- monitor_audio loop tests (mocking sounddevice & time) ----------
 
+
 def test_monitor_audio_triggers_detection_and_rate_limits(monkeypatch, capsys):
     """
     - Validates that a detection message prints.
@@ -167,6 +187,7 @@ def test_monitor_audio_triggers_detection_and_rate_limits(monkeypatch, capsys):
     # Raise KeyboardInterrupt on first sleep to exit the while loop
     def fake_sleep(ms):
         raise KeyboardInterrupt
+
     monkeypatch.setattr(mon.sd, "sleep", fake_sleep)
 
     # Run monitor
@@ -198,6 +219,7 @@ def test_monitor_audio_no_detection(monkeypatch, capsys):
 
     def fake_sleep(ms):
         raise KeyboardInterrupt
+
     monkeypatch.setattr(mon.sd, "sleep", fake_sleep)
 
     # time is irrelevant for negative case but keep deterministic
@@ -223,6 +245,7 @@ def test_monitor_audio_no_detection(monkeypatch, capsys):
 
 # ---------- CLI tests ----------
 
+
 def test_main_lists_devices(monkeypatch, capsys):
     _ensure_sd(monkeypatch)  # ensure mon.sd exists
     monkeypatch.setattr(mon.sd, "query_devices", lambda: "DEVICES")
@@ -243,16 +266,26 @@ def test_main_parses_args_and_calls_monitor(monkeypatch):
 
     monkeypatch.setattr(mon, "monitor_audio", fake_monitor)
     argv = [
-        "--device", "mic0",
-        "--samplerate", "22050",
-        "--channels", "2",
-        "--latency", "0.05",
-        "--blocksize", "2048",
-        "--min-interval", "0.5",
-        "--block-duration", "0.2",
-        "--low", "120",
-        "--high", "650",
-        "--threshold", "0.3",
+        "--device",
+        "mic0",
+        "--samplerate",
+        "22050",
+        "--channels",
+        "2",
+        "--latency",
+        "0.05",
+        "--blocksize",
+        "2048",
+        "--min-interval",
+        "0.5",
+        "--block-duration",
+        "0.2",
+        "--low",
+        "120",
+        "--high",
+        "650",
+        "--threshold",
+        "0.3",
     ]
     ret = mon.main(argv)
     assert ret == 0
