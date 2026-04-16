@@ -17,15 +17,13 @@ window.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-_ALLOWED_OUTPUT_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.pdf', '.svg'}
+_ALLOWED_OUTPUT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf", ".svg"}
 
 
 def _validate_input_path(path: str) -> None:
@@ -40,12 +38,11 @@ def _validate_output_path(path: str) -> None:
     ext = Path(path).suffix.lower()
     if ext not in _ALLOWED_OUTPUT_EXTENSIONS:
         raise ValueError(
-            f"Output path has unsupported extension {ext!r}. "
-            f"Allowed: {', '.join(sorted(_ALLOWED_OUTPUT_EXTENSIONS))}"
+            f"Output path has unsupported extension {ext!r}. Allowed: {', '.join(sorted(_ALLOWED_OUTPUT_EXTENSIONS))}"
         )
 
 
-def read_rtl_power_csv(path: str) -> Tuple[np.ndarray, List[str], np.ndarray]:
+def read_rtl_power_csv(path: str) -> tuple[np.ndarray, list[str], np.ndarray]:
     """Parse ``rtl_power`` CSV output.
 
     Args:
@@ -54,11 +51,11 @@ def read_rtl_power_csv(path: str) -> Tuple[np.ndarray, List[str], np.ndarray]:
     Returns:
         Tuple of (frequencies, time strings, power matrix).
     """
-    times: List[str] = []
-    powers: List[List[float]] = []
+    times: list[str] = []
+    powers: list[list[float]] = []
     freqs: np.ndarray | None = None
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line or line.startswith("#"):
@@ -69,7 +66,7 @@ def read_rtl_power_csv(path: str) -> Tuple[np.ndarray, List[str], np.ndarray]:
                 date, tstamp = parts[0], parts[1]
                 start_freq = float(parts[2])
                 step_hz = float(parts[4])
-                db_vals: List[float] = []
+                db_vals: list[float] = []
                 for val in parts[6:]:
                     try:
                         db_vals.append(float(val))
@@ -79,20 +76,18 @@ def read_rtl_power_csv(path: str) -> Tuple[np.ndarray, List[str], np.ndarray]:
                     freqs = start_freq + step_hz * np.arange(len(db_vals))
                 powers.append(db_vals)
                 times.append(f"{date} {tstamp}")
-    except (IOError, OSError) as exc:
+    except OSError as exc:
         raise RuntimeError(f"Failed to read file {path}: {exc}") from exc
-    
+
     if freqs is None:
         return np.array([]), [], np.array([])
     return freqs, times, np.array(powers)
 
 
-def plot_heatmap(
-    freqs: np.ndarray, times: List[str], power: np.ndarray, output: str | None
-) -> None:
+def plot_heatmap(freqs: np.ndarray, times: list[str], power: np.ndarray, output: str | None) -> None:
     """Create a heatmap from ``rtl_power`` data."""
     plt.figure(figsize=(10, 4))
-    extent = [freqs[0], freqs[-1], len(times), 0]
+    extent = (float(freqs[0]), float(freqs[-1]), float(len(times)), 0.0)
     plt.imshow(power, aspect="auto", extent=extent, cmap="viridis")
     plt.colorbar(label="Power (dB)")
     plt.xlabel("Frequency (Hz)")
@@ -103,14 +98,10 @@ def plot_heatmap(
         plt.show()
 
 
-def main(argv: List[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Plot rtl_power output as a heatmap"
-    )
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Plot rtl_power output as a heatmap")
     parser.add_argument("file", help="rtl_power output file to visualize")
-    parser.add_argument(
-        "-o", "--output", help="Path to save the plot (default: display it)"
-    )
+    parser.add_argument("-o", "--output", help="Path to save the plot (default: display it)")
     args = parser.parse_args(argv)
     try:
         _validate_input_path(args.file)

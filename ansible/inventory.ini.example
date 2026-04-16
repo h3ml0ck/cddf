@@ -1,0 +1,11 @@
+# inventory.ini.example
+# Copy to inventory.ini and replace the example hosts with your own.
+# The real inventory.ini is gitignored to keep host details out of the repo.
+
+[watchtowers]
+cddf-watchtower-a.local
+cddf-watchtower-b.local
+
+[watchtowers:vars]
+ansible_user=pi
+ansible_python_interpreter=/usr/bin/python3

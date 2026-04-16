@@ -1,11 +1,11 @@
 import math
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
-from types import SimpleNamespace
 
 # Import after we prepare monkeypatches in each test
 import drone_tools.drone_audio_detection as audio_detection
-
 
 SR = 8000
 DUR = 1.0
@@ -26,8 +26,9 @@ class FakeSoundFileModule:
       - SoundFile(path, mode) -> ctx manager yielding a handle
       - blocks(handle, blocksize, overlap, always_2d) -> generator of blocks
     """
+
     def __init__(self, registry, samplerate):
-        self._registry = registry           # {path: np.ndarray or 2D array}
+        self._registry = registry  # {path: np.ndarray or 2D array}
         self._sr = samplerate
 
     # ---- API used by code under test
@@ -41,8 +42,12 @@ class FakeSoundFileModule:
     class _Handle:
         def __init__(self, path):
             self.path = path
-        def __enter__(self): return self
-        def __exit__(self, exc_type, exc, tb): return False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
 
     def SoundFile(self, path, mode):
         return self._Handle(path)
@@ -206,6 +211,7 @@ def test_main_error_nonexistent_file_returns_one(capsys, monkeypatch):
     # Make sf.info throw an OSError to simulate missing file
     def err(_):
         raise OSError("missing")
+
     monkeypatch.setattr(audio_detection.sf, "info", err)
 
     ret = audio_detection.main(["/no/such/file.wav"])

@@ -3,16 +3,16 @@
 import argparse
 import logging
 import sys
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 import numpy as np
-
 
 # Library may not be installed during tests
 try:
     from hackrf import HackRf
 except Exception:
     HackRf = None
+
 
 # -----------------------------
 # CLI/UX helpers
@@ -38,8 +38,8 @@ def parse_hz(value: str) -> float:
         s = s[:-2]
     try:
         return float(s) * mult
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"Invalid frequency/rate: {value!r}")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Invalid frequency/rate: {value!r}") from exc
 
 
 def within_hackrf_limits(freq_hz: float) -> bool:
@@ -101,8 +101,8 @@ def detect_drone_without_remote_id(
     threshold_dbfs: float = -40.0,
     sample_rate: float = 20e6,
     duration: float = 0.1,
-    lna_gain: Optional[int] = 32,
-    vga_gain: Optional[int] = 20,
+    lna_gain: int | None = 32,
+    vga_gain: int | None = 20,
     settle_time: float = 0.005,
 ) -> bool:
     """Scan ``freqs`` and report drone-like activity lacking remote ID beacons."""
@@ -127,7 +127,10 @@ def detect_drone_without_remote_id(
     if total_sweep_time > 30 and logging.getLogger().isEnabledFor(logging.WARNING):
         logging.warning(
             "Sweep may take ~%.1f s (freqs=%d, rid=%d, duration=%.3fs each).",
-            total_sweep_time, len(freqs), len(remote_id_freqs), duration
+            total_sweep_time,
+            len(freqs),
+            len(remote_id_freqs),
+            duration,
         )
 
     with HackRf() as device:
@@ -140,25 +143,20 @@ def detect_drone_without_remote_id(
 
         # Measure RID baseline first (max)
         rid_power = max(
-            _measure_power(device, f, sample_rate, duration, settle_time=settle_time)
-            for f in remote_id_freqs
+            _measure_power(device, f, sample_rate, duration, settle_time=settle_time) for f in remote_id_freqs
         )
 
         for f in freqs:
             power = _measure_power(device, f, sample_rate, duration, settle_time=settle_time)
             if power > threshold_dbfs and rid_power < threshold_dbfs:
-                print(
-                    f"Possible drone signal at {f/1e6:.1f} MHz without remote ID (power {power:.1f} dBFS)"
-                )
+                print(f"Possible drone signal at {f / 1e6:.1f} MHz without remote ID (power {power:.1f} dBFS)")
                 return True
     return False
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
-    parser = argparse.ArgumentParser(
-        description="Detect drone RF signals lacking remote ID using HackRF One"
-    )
+    parser = argparse.ArgumentParser(description="Detect drone RF signals lacking remote ID using HackRF One")
 
     # CLI/UX improvements
     parser.add_argument(
@@ -207,10 +205,10 @@ def main(argv: List[str] | None = None) -> int:
             print("HackRF library not available.", file=sys.stderr)
             return 1
         try:
-            with HackRf() as dev:
+            with HackRf():
                 # Print minimal info available
                 print("HackRF device opened successfully.")
-                print(f"Default sample rate may vary; requested via --sample-rate.")
+                print("Default sample rate may vary; requested via --sample-rate.")
                 print("Tip: ensure udev/driver permissions are configured.")
             return 0
         except Exception as e:  # Hardware dependent

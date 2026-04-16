@@ -40,3 +40,50 @@ drone-db = "drone_tools.drone_db:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["drone_tools*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["build", "dist", ".venv", "venv", "kismet-queuer"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+  "E501",  # line too long (handled by formatter)
+  "E741",  # ambiguous variable names (lat/lon etc. common here)
+  "B008",  # function calls in argument defaults (argparse patterns)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# scapy.all re-exports are needed so scapy can resolve Dot11/Dot11Beacon layers at runtime.
+"drone_tools/drone_wifi_remote_id.py" = ["F401"]
+# Tests may import fixtures/helpers without using them directly.
+"tests/*" = ["F401", "F841"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = false
+exclude = ["build/", "dist/", "kismet-queuer/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
+
+# scapy.all uses dynamic layer loading; attribute checks produce false positives.
+[[tool.mypy.overrides]]
+module = ["drone_tools.drone_wifi_remote_id"]
+disable_error_code = ["attr-defined"]
+
+# openai SDK image generation overloads are sensitive to positional/keyword argument style.
+[[tool.mypy.overrides]]
+module = ["drone_tools.image_query"]
+disable_error_code = ["call-overload"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"

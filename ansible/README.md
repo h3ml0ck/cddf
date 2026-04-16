@@ -5,13 +5,14 @@ This directory contains Ansible resources for provisioning CDDF edge nodes that 
 ## Contents
 
 - `edge-node-watchtower-playbook.yml` – Provisions a Raspberry Pi OS (Debian-based) edge node with the CDDF toolchain, SDR dependencies, and Kismet services.
-- `inventory.ini` – Example static inventory that lists the Watchtower hosts and their SSH configuration defaults.
+- `inventory.ini.example` – Template static inventory. Copy to `inventory.ini` (gitignored) and point the hosts at your own Watchtower nodes.
 
 ## Prerequisites
 
 1. Install Ansible (version 2.14+ recommended).
-2. Ensure passwordless SSH or SSH key-based access to the target hosts. The default username in the inventory is `pi`.
-3. Optional: export `ANSIBLE_CONFIG`, `ANSIBLE_HOST_KEY_CHECKING=False`, or other Ansible environment variables that fit your workflow.
+2. Copy `inventory.ini.example` to `inventory.ini` and edit it to match your environment.
+3. Ensure passwordless SSH or SSH key-based access to the target hosts. The default username in the inventory is `pi`.
+4. Optional: export `ANSIBLE_CONFIG`, `ANSIBLE_HOST_KEY_CHECKING=False`, or other Ansible environment variables that fit your workflow.
 
 ## Example Commands
 
@@ -66,6 +67,6 @@ ansible-playbook edge-node-watchtower-playbook.yml \
 ## Additional Tips
 
 - Many tasks require elevated privileges; use `--become` and provide the sudo password when prompted.
-- Review and customize `inventory.ini` to match your environment (hostnames, users, Python interpreter path).
+- Review and customize `inventory.ini` (from `inventory.ini.example`) to match your environment (hostnames, users, Python interpreter path).
 - To speed up repeated runs, consider enabling Ansible fact caching (`ansible.cfg`) or setting up SSH control master options.
 
