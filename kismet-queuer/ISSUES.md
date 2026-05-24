@@ -21,10 +21,9 @@
   - Should use a dedicated low-privilege user
   - **Fixed:** Created dedicated system user 'kismet-queuer' with no login shell, updated service to run as this user, and modified install script to create user and set proper permissions
 
-- [ ] **4. Insecure WebSocket Connection** (kismet_to_queue.py:177)
-  - Uses unencrypted `ws://` protocol instead of `wss://`
-  - Credentials and device data are transmitted in plaintext over the network
-  - **Status: Won't Fix** - Connecting to localhost only, unencrypted connection is acceptable
+- [x] **4. Insecure WebSocket Connection** (kismet_to_queue.py:260-265)
+  - Originally hardcoded `ws://`, transmitting credentials and device data in plaintext.
+  - **Fixed:** Added `use_tls` config option in `[kismet]`. When enabled, the connection uses `wss://` with `ssl.create_default_context()` for certificate verification. Defaults to `ws://` for the common localhost case but is one config line away from secure transport for remote Kismet servers.
 
 - [x] **5. No Config File Permission Warnings**
   - The config.ini file contains plaintext passwords but there's no documentation warning users to set restrictive permissions (chmod 600)
