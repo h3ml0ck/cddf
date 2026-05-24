@@ -23,6 +23,11 @@ Install with dev dependencies:
 pip install -e ".[dev]"
 ```
 
+Optional HackRF support (drone-rf-detect; needs libhackrf-dev):
+```bash
+pip install -e ".[hackrf]"
+```
+
 Run tests:
 ```bash
 pytest
