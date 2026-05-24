@@ -168,13 +168,15 @@ def process_packet(packet) -> None:
     if not packet.haslayer(Dot11Beacon):
         return
 
-    beacon = packet[Dot11Beacon]
     bssid = packet[Dot11].addr2
 
-    # Look for vendor specific elements
-    element = beacon.payload
-    while element:
-        if hasattr(element, "ID") and element.ID == 221:  # Vendor Specific
+    # Walk the chain of 802.11 information elements. `getlayer(Dot11Elt)`
+    # returns the first IE; subsequent IEs are reachable via `.payload`.
+    # `isinstance` cleanly terminates on NoPayload or any non-IE layer,
+    # which is safer than the previous `hasattr` check.
+    element = packet.getlayer(Dot11Elt)
+    while isinstance(element, Dot11Elt):
+        if element.ID == 221:  # Vendor Specific
             remote_id_data = parse_remote_id_element(bytes(element.info))
             if remote_id_data:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -186,7 +188,7 @@ def process_packet(packet) -> None:
                     if key not in ["message_type", "raw_type", "data_length"]:
                         print(f"  {key}: {value}")
 
-        element = element.payload if hasattr(element, "payload") else None
+        element = element.payload
 
 
 def capture_remote_id(interface: str, timeout: float | None = None, use_filter: bool = True) -> None:
