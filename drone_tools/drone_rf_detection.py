@@ -1,5 +1,7 @@
 """Utility to detect drone RF signals without remote ID using a HackRF One."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import sys
@@ -56,7 +58,7 @@ def within_rate_limits(rate_hz: float) -> bool:
 # Measurement
 # -----------------------------
 def _measure_power(
-    device: "HackRf",
+    device: HackRf,
     center_freq: float,
     sample_rate: float,
     duration: float,

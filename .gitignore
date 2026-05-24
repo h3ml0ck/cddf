@@ -6,6 +6,7 @@ __pycache__/
 build/
 *.egg-info/
 .pytest_cache
+<<<<<<< ours
 .coverage
 .mypy_cache/
 .ruff_cache/
@@ -16,3 +17,6 @@ ansible/inventory.ini
 kismet-queuer/ansible/inventory
 kismet-queuer/config/config.ini
 kismet-queuer/ansible/roles/kismet-queuer/vars/credentials.yml
+=======
+.DS_Store
+>>>>>>> theirs

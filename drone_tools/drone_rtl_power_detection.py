@@ -59,8 +59,11 @@ def detect_rtl_power(freq_range: str, threshold_db: float = -30.0, integration: 
     """
     _validate_freq_range(freq_range)
     cmd = ["rtl_power", "-f", freq_range, "-i", str(integration), "-1"]
+    # rtl_power runs for at least `integration` seconds per pass; allow generous
+    # headroom for slow USB / Raspberry Pi hardware (5x integration, min 10s).
+    timeout = max(10.0, integration * 5.0)
     try:
-        res = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=10)
+        res = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout)
     except (
         subprocess.CalledProcessError,
         subprocess.TimeoutExpired,

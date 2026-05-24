@@ -175,7 +175,6 @@ def test_invalid_overlap_raises(in_band_file):
 def test_invalid_freq_range_high_over_nyquist_raises(in_band_file, monkeypatch):
     # Patch sf.info to report a lower samplerate so Nyquist is small
     fake_info = SimpleNamespace(samplerate=1000, frames=SR)  # Nyquist=500
-    orig_info = audio_detection.sf.info
 
     def info_patch(path):
         return fake_info
