@@ -21,6 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 hackrf = ["hackrf"]
+amqp = ["aio-pika>=9.0.0"]
+lora = ["meshtastic>=2.0.0"]
+lora-bridge = ["meshtastic>=2.0.0", "aio-pika>=9.0.0"]
 dev = ["pytest", "pytest-cov", "ruff", "mypy", "types-requests", "types-setuptools"]
 
 # Console commands (optional; remove if you don’t want these)
@@ -36,6 +39,9 @@ drone-rtl-power-visualize = "drone_tools.rtl_power_visualization:main"
 drone-mock-sniffle = "drone_tools.mock_sniffle_remote_id:main"
 drone-ble-remote-id = "drone_tools.drone_ble_remote_id:main"
 drone-db = "drone_tools.drone_db:main"
+drone-lora-relay = "drone_tools.drone_lora:main"
+drone-lora-to-queue = "drone_tools.lora_to_queue:main"
+drone-emit-test = "drone_tools.detection_emit:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

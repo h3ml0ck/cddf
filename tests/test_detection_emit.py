@@ -1,0 +1,157 @@
+"""Tests for the detection emitter, sinks, and config-driven construction.
+
+The RabbitMQSink's live AMQP path needs a broker and isn't covered here; we
+test the message envelope, fan-out/error isolation, and config wiring with
+fake sinks.
+"""
+
+import configparser
+
+import pytest
+
+from drone_tools.detection_emit import (
+    DetectionEmitter,
+    DetectionSink,
+    StdoutSink,
+    build_emitter,
+    event_to_dict,
+    format_detection_message,
+    routing_key,
+)
+from drone_tools.drone_lora import DetectionEvent, DetectorType
+
+
+class _RecordingSink(DetectionSink):
+    def __init__(self):
+        self.events = []
+        self.started = False
+        self.closed = False
+
+    def start(self):
+        self.started = True
+        return self
+
+    def emit(self, event):
+        self.events.append(event)
+
+    def close(self):
+        self.closed = True
+
+
+class _ExplodingSink(DetectionSink):
+    def emit(self, event):
+        raise RuntimeError("boom")
+
+
+# --- message format --------------------------------------------------------
+
+
+def test_routing_key_lowercases_detector():
+    assert routing_key("WIFI_REMOTE_ID") == "cddf.detection.wifi_remote_id"
+
+
+def test_event_to_dict_preserves_none_fields():
+    d = event_to_dict(DetectionEvent(detector=DetectorType.AUDIO, timestamp=1))
+    assert d["detector"] == "AUDIO"
+    assert d["lat"] is None
+
+
+def test_format_detection_message_local_has_no_lora_key():
+    event = DetectionEvent(detector=DetectorType.RF, timestamp=1, drone_id="X")
+    msg = format_detection_message(event, hostname="node-1")
+    assert msg["source"] == "local"
+    assert msg["message_type"] == "detection"
+    assert msg["detector"] == "RF"
+    assert msg["event"]["drone_id"] == "X"
+    assert "lora" not in msg
+
+
+def test_format_detection_message_includes_lora_meta_when_given():
+    event = DetectionEvent(detector=DetectorType.BLE_REMOTE_ID, timestamp=1)
+    msg = format_detection_message(event, hostname="gw", source="lora", lora_meta={"from_id": "!abcd", "rssi": -90})
+    assert msg["source"] == "lora"
+    assert msg["lora"] == {"from_id": "!abcd", "rssi": -90}
+
+
+# --- emitter fan-out -------------------------------------------------------
+
+
+def test_emitter_fans_out_to_all_sinks():
+    a, b = _RecordingSink(), _RecordingSink()
+    emitter = DetectionEmitter([a, b])
+    event = DetectionEvent(detector=DetectorType.AUDIO, timestamp=1)
+    emitter.emit(event)
+    assert a.events == [event]
+    assert b.events == [event]
+
+
+def test_emitter_isolates_sink_failure():
+    good = _RecordingSink()
+    # Exploding sink must not stop the healthy one.
+    emitter = DetectionEmitter([_ExplodingSink(), good])
+    event = DetectionEvent(detector=DetectorType.AUDIO, timestamp=1)
+    emitter.emit(event)  # should not raise
+    assert good.events == [event]
+
+
+def test_emitter_start_and_close_propagate():
+    a, b = _RecordingSink(), _RecordingSink()
+    emitter = DetectionEmitter([a, b])
+    with emitter:
+        assert a.started and b.started
+    assert a.closed and b.closed
+
+
+def test_emitter_close_isolates_failure():
+    class _BadClose(DetectionSink):
+        def emit(self, event):
+            pass
+
+        def close(self):
+            raise RuntimeError("close boom")
+
+    good = _RecordingSink()
+    DetectionEmitter([_BadClose(), good]).close()  # should not raise
+    assert good.closed
+
+
+# --- config-driven construction --------------------------------------------
+
+
+def _config(text: str) -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    cfg.read_string(text)
+    return cfg
+
+
+def test_build_emitter_stdout_only():
+    emitter = build_emitter(_config("[emit]\nsinks = stdout\n"))
+    assert len(emitter.sinks) == 1
+    assert isinstance(emitter.sinks[0], StdoutSink)
+
+
+def test_build_emitter_requires_emit_section():
+    with pytest.raises(ValueError, match="emit"):
+        build_emitter(_config("[rabbitmq]\nhost = x\n"))
+
+
+def test_build_emitter_empty_sinks_rejected():
+    with pytest.raises(ValueError, match="at least one"):
+        build_emitter(_config("[emit]\nsinks =\n"))
+
+
+def test_build_emitter_unknown_sink_rejected():
+    with pytest.raises(ValueError, match="unknown sink"):
+        build_emitter(_config("[emit]\nsinks = carrierpigeon\n"))
+
+
+def test_build_emitter_rabbitmq_missing_section_rejected():
+    with pytest.raises(ValueError, match="rabbitmq"):
+        build_emitter(_config("[emit]\nsinks = rabbitmq\n"))
+
+
+def test_stdout_sink_emits(capsys):
+    StdoutSink().emit(DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="D1", rssi=-50))
+    out = capsys.readouterr().out
+    assert "WIFI_REMOTE_ID" in out
+    assert "drone_id=D1" in out

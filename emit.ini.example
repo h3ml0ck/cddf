@@ -1,0 +1,39 @@
+# Per-node detection emit config (copy to emit.ini).
+#
+# Each detection node loads this to decide where its events go. The same
+# detector code runs everywhere; only this file changes per node.
+
+[emit]
+# Comma-separated sinks this node uses. Options: rabbitmq, lora, stdout.
+#   - Node with network connectivity:        sinks = rabbitmq
+#   - Off-grid node (relayed via a gateway):  sinks = lora
+#   - Belt-and-suspenders / field node:       sinks = rabbitmq, lora
+#   - Local debugging:                        sinks = stdout
+sinks = rabbitmq, lora
+
+# Optional. Defaults to this host's hostname. Identifies the node in messages.
+hostname =
+
+# Tag applied to messages this node publishes directly (the gateway uses "lora").
+source = local
+
+[rabbitmq]
+# Required when 'rabbitmq' is in [emit] sinks. Same broker as kismet-queuer.
+host = central-broker.local
+port = 5672
+# Create a dedicated low-privilege user; do not ship 'guest'/'CHANGE_ME'.
+username = CHANGE_ME
+password = CHANGE_ME
+virtual_host = /
+exchange = kismet_events
+exchange_type = topic
+
+[lora]
+# Required when 'lora' is in [emit] sinks.
+# Serial port of the Meshtastic device; leave blank to auto-detect.
+device =
+# Or connect to a Meshtastic device over TCP instead of serial.
+host =
+# Throttle: at most one broadcast per drone (or per detector type when no
+# drone ID) per this many seconds. 0 disables throttling.
+throttle_interval = 30
