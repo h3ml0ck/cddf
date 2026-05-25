@@ -21,7 +21,8 @@ def query_image(prompt: str, n: int = 1, size: str = "1024x1024") -> list:
 
     client = openai.OpenAI(api_key=api_key)
     response = client.images.generate(prompt=prompt, n=n, size=size)
-    return [image.url for image in response.data]
+    # response.data is Optional; the API omits it on an empty/failed result.
+    return [image.url for image in (response.data or [])]
 
 
 def main(argv=None):
