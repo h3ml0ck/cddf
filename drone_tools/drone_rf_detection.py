@@ -9,6 +9,9 @@ from collections.abc import Iterable
 
 import numpy as np
 
+from drone_tools.detection_emit import add_emit_args, open_emitter
+from drone_tools.drone_lora import DetectionEvent, DetectorType
+
 # Library may not be installed during tests
 try:
     from hackrf import HackRf
@@ -192,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v, -vv)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Quiet mode (errors only)")
 
+    add_emit_args(parser)
+
     args = parser.parse_args(argv)
 
     # Configure logging per CLI/UX
@@ -222,25 +227,37 @@ def main(argv: list[str] | None = None) -> int:
     rid_freqs = args.rid_freqs or [2.433e9]
 
     try:
-        found = detect_drone_without_remote_id(
-            freqs=freqs,
-            remote_id_freqs=rid_freqs,
-            threshold_dbfs=args.threshold,
-            sample_rate=float(args.sample_rate),
-            duration=args.duration,
-            lna_gain=args.lna_gain,
-            vga_gain=args.vga_gain,
-            settle_time=args.settle_time,
-        )
-    except Exception as exc:  # Depends on hardware
-        print(f"Error during detection: {exc}", file=sys.stderr)
+        emitter = open_emitter(args)
+    except Exception as exc:
+        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
         return 1
 
-    if found:
-        print("Drone without remote ID detected")
-    else:
-        print("No drone without remote ID detected")
-    return 0
+    try:
+        try:
+            found = detect_drone_without_remote_id(
+                freqs=freqs,
+                remote_id_freqs=rid_freqs,
+                threshold_dbfs=args.threshold,
+                sample_rate=float(args.sample_rate),
+                duration=args.duration,
+                lna_gain=args.lna_gain,
+                vga_gain=args.vga_gain,
+                settle_time=args.settle_time,
+            )
+        except Exception as exc:  # Depends on hardware
+            print(f"Error during detection: {exc}", file=sys.stderr)
+            return 1
+
+        if found:
+            print("Drone without remote ID detected")
+            if emitter is not None:
+                emitter.emit(DetectionEvent(detector=DetectorType.RF))
+        else:
+            print("No drone without remote ID detected")
+        return 0
+    finally:
+        if emitter is not None:
+            emitter.close()
 
 
 if __name__ == "__main__":

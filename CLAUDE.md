@@ -126,6 +126,28 @@ ansible-playbook playbook.yml -i inventory -u pi --become --ask-become-pass
 - **Visualization** (`rtl_power_visualization.py`)
   - Creates frequency spectrum heatmaps from RTL-SDR output
 
+- **LoRa Mesh Relay** (`drone_lora.py`)
+  - Broadcasts/receives compact drone detection events between nodes over a Meshtastic radio (USB-serial or TCP)
+  - Meshtastic handles mesh routing, encryption, addressing, and sender node ID; this module adds a bit-packed binary codec (fits Meshtastic's ~237-byte payload) and a thin link layer
+  - Detection frames ride a private Meshtastic port number (`PRIVATE_APP`) so they stay off the text channel
+  - `DetectionThrottle` rate-limits broadcasts (default: one per drone_id, else per detector type, per interval) so duty-cycle limits aren't blown; pass it to `MeshLink(throttle=...)` and `broadcast()` returns False when suppressed
+  - Codec (`DetectionEvent`/`encode_event`/`decode_event`) and `DetectionThrottle` have no hardware dependency; radio layer (`MeshLink`) needs the optional `lora` extra (`pip install -e ".[lora]"`)
+
+- **LoRa → RabbitMQ Bridge** (`lora_to_queue.py`)
+  - Gateway node: receives detection events over the Meshtastic mesh and republishes them to the same RabbitMQ exchange as kismet-queuer, so off-grid detections reach the central pipeline once any node has connectivity
+  - Reuses the kismet-queuer INI format (`[rabbitmq]`/`[logging]` sections) — point both at one shared config
+  - Routing key `cddf.detection.{detector}` (separate namespace from kismet's `kismet.*`); message envelope mirrors `kismet_to_queue.py` with link metadata under a `lora` key
+  - Marries Meshtastic's threaded callbacks to async aio-pika via a bounded `asyncio.Queue`; needs the optional `lora-bridge` extra (`pip install -e ".[lora-bridge]"`)
+
+- **Detection Emit / Sinks** (`detection_emit.py`)
+  - Decouples detectors from transport: a detector calls `emitter.emit(DetectionEvent(...))` and a `DetectionEmitter` fans it out to the sinks a node is configured for
+  - `RabbitMQSink` publishes directly to the central broker over AMQP (runs aio-pika on a background loop so its `emit()` is synchronous and non-blocking for sync detectors); `LoRaSink` broadcasts over the mesh (off-grid); `StdoutSink` prints locally
+  - Per-sink failures are isolated — a dead broker or unplugged radio never stops the other sinks or the detector
+  - Topology is pure config: `build_emitter`/`load_emitter` read an `[emit] sinks = ...` INI section (see `emit.ini.example`). Hybrid nodes set `sinks = rabbitmq, lora` to publish directly *and* relay over LoRa
+  - Owns the canonical `format_detection_message`/`routing_key`/`event_to_dict` (lora_to_queue imports them); `drone-emit-test` sends one sample event through a node's configured emitter to verify setup
+  - `RabbitMQSink` needs the `amqp` extra, `LoRaSink` the `lora` extra; a hybrid node installs `pip install -e ".[amqp,lora]"`
+  - **Every detector accepts `--emit-config PATH`** (added via `add_emit_args`/`open_emitter`): without it detections only print; with it they're also emitted to the configured sinks. Continuous detectors (audio monitor, Wi-Fi, BLE) emit per detection; one-shot detectors (audio file, RF, RTL) emit once if a drone is found. The Wi-Fi path combines Basic ID + Location/Vector from one beacon into a single event; `RabbitMQSink.close()` drains pending events so one-shot emits aren't lost
+
 - **Testing/Mock** (`mock_sniffle_remote_id.py`)
   - Simulates Sniffle BLE sniffer output for Remote ID testing
   - Generates realistic ASTM F3411 packets without hardware
