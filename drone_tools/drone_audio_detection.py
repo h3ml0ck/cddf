@@ -6,6 +6,9 @@ import sys
 import numpy as np
 import soundfile as sf
 
+from drone_tools.detection_emit import add_emit_args, open_emitter
+from drone_tools.drone_lora import DetectionEvent, DetectorType
+
 
 def detect_drone_sound(
     audio_path: str,
@@ -116,19 +119,32 @@ def main(argv=None) -> int:
         default=0.2,
         help="Energy ratio threshold for positive detection",
     )
+    add_emit_args(parser)
     args = parser.parse_args(argv)
 
     try:
-        detected = detect_drone_sound(args.audio_path, (args.low, args.high), args.threshold)
+        emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error processing audio: {exc}", file=sys.stderr)
+        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
         return 1
 
-    if detected:
-        print("Drone sound detected")
-    else:
-        print("No drone sound detected")
-    return 0
+    try:
+        try:
+            detected = detect_drone_sound(args.audio_path, (args.low, args.high), args.threshold)
+        except Exception as exc:
+            print(f"Error processing audio: {exc}", file=sys.stderr)
+            return 1
+
+        if detected:
+            print("Drone sound detected")
+            if emitter is not None:
+                emitter.emit(DetectionEvent(detector=DetectorType.AUDIO))
+        else:
+            print("No drone sound detected")
+        return 0
+    finally:
+        if emitter is not None:
+            emitter.close()
 
 
 if __name__ == "__main__":

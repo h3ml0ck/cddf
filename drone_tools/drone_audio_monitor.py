@@ -14,6 +14,9 @@ import time
 
 import numpy as np
 
+from drone_tools.detection_emit import DetectionEmitter, add_emit_args, open_emitter
+from drone_tools.drone_lora import DetectionEvent, DetectorType
+
 try:
     import sounddevice as sd
 except ImportError:
@@ -76,6 +79,7 @@ def monitor_audio(
     latency: float | None,
     blocksize_cli: int | None,
     min_interval: float,
+    emitter: DetectionEmitter | None = None,
 ) -> None:
     """Continuously monitor the selected device for drone sounds."""
     if sd is None:
@@ -115,6 +119,8 @@ def monitor_audio(
             if (now - last_print_ts) >= min_interval:
                 print("Drone sound detected", flush=True)
                 last_print_ts = now
+                if emitter is not None:
+                    emitter.emit(DetectionEvent(detector=DetectorType.AUDIO))
 
     stream_kwargs = dict(
         device=device,
@@ -179,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         default=0.2,
         help="Energy ratio threshold for positive detection",
     )
+    add_emit_args(parser)
     args = parser.parse_args(argv)
 
     if args.list_devices:
@@ -188,18 +195,29 @@ def main(argv: list[str] | None = None) -> int:
         print(sd.query_devices())
         return 0
 
+    try:
+        emitter = open_emitter(args)
+    except Exception as exc:
+        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        return 1
+
     freq_range = (args.low, args.high)
-    monitor_audio(
-        device=args.device,
-        samplerate=args.samplerate,
-        block_duration=args.block_duration,
-        freq_range=freq_range,
-        threshold=args.threshold,
-        channels=args.channels,
-        latency=args.latency,
-        blocksize_cli=args.blocksize,
-        min_interval=args.min_interval,
-    )
+    try:
+        monitor_audio(
+            device=args.device,
+            samplerate=args.samplerate,
+            block_duration=args.block_duration,
+            freq_range=freq_range,
+            threshold=args.threshold,
+            channels=args.channels,
+            latency=args.latency,
+            blocksize_cli=args.blocksize,
+            min_interval=args.min_interval,
+            emitter=emitter,
+        )
+    finally:
+        if emitter is not None:
+            emitter.close()
     return 0
 
 

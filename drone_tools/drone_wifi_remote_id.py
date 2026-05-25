@@ -20,6 +20,8 @@ try:
 except ImportError:
     SCAPY_AVAILABLE = False
 
+from drone_tools.detection_emit import DetectionEmitter, add_emit_args, open_emitter
+from drone_tools.drone_lora import DetectionEvent, DetectorType
 
 # ASTM F3411 Remote ID message types
 REMOTE_ID_MESSAGE_TYPES = {
@@ -163,12 +165,54 @@ def parse_operator_id(data: bytes) -> dict:
         return {"parse_error": "Failed to parse Operator ID"}
 
 
-def process_packet(packet) -> None:
-    """Process a captured WiFi packet for Remote ID information."""
+def _packet_rssi(packet) -> int | None:
+    """Best-effort RSSI (dBm) from the packet's RadioTap header, if present."""
+    try:
+        if packet is not None and packet.haslayer(RadioTap):
+            signal = packet[RadioTap].dBm_AntSignal
+            if signal is not None:
+                return int(signal)
+    except Exception:
+        return None
+    return None
+
+
+def _event_from_remote_id(fields: dict, rssi: int | None) -> DetectionEvent | None:
+    """Map accumulated Remote ID fields to a DetectionEvent.
+
+    Returns None unless the packet carried an identity or a location, so we
+    don't emit empty events for vendor elements that aren't really Remote ID.
+    """
+    drone_id = fields.get("uas_id") or None
+    lat = fields.get("latitude")
+    lon = fields.get("longitude")
+    if not drone_id and lat is None:
+        return None
+    altitude = fields.get("altitude")
+    return DetectionEvent(
+        detector=DetectorType.WIFI_REMOTE_ID,
+        drone_id=drone_id,
+        lat=lat,
+        lon=lon,
+        altitude=int(altitude) if altitude is not None else None,
+        operator_id=fields.get("operator_id") or None,
+        rssi=rssi,
+    )
+
+
+def process_packet(packet, emitter: DetectionEmitter | None = None) -> None:
+    """Process a captured WiFi packet for Remote ID information.
+
+    Prints each decoded Remote ID message. When ``emitter`` is given, the
+    fields decoded across the packet's information elements are combined into a
+    single DetectionEvent (so Basic ID + Location/Vector in one beacon join
+    into one event) and emitted.
+    """
     if not packet.haslayer(Dot11Beacon):
         return
 
     bssid = packet[Dot11].addr2
+    combined: dict = {}
 
     # Walk the chain of 802.11 information elements. `getlayer(Dot11Elt)`
     # returns the first IE; subsequent IEs are reachable via `.payload`.
@@ -188,16 +232,29 @@ def process_packet(packet) -> None:
                     if key not in ["message_type", "raw_type", "data_length"]:
                         print(f"  {key}: {value}")
 
+                combined.update(remote_id_data)
+
         element = element.payload
 
+    if emitter is not None and combined:
+        event = _event_from_remote_id(combined, _packet_rssi(packet))
+        if event is not None:
+            emitter.emit(event)
 
-def capture_remote_id(interface: str, timeout: float | None = None, use_filter: bool = True) -> None:
+
+def capture_remote_id(
+    interface: str,
+    timeout: float | None = None,
+    use_filter: bool = True,
+    emitter: DetectionEmitter | None = None,
+) -> None:
     """Capture drone remote ID broadcasts over WiFi.
 
     Args:
         interface: WiFi interface name (e.g., 'wlan0', 'en0')
         timeout: Capture timeout in seconds, None for infinite
         use_filter: Whether to use BPF filter (may not work on all interfaces)
+        emitter: Optional DetectionEmitter to publish decoded detections.
     """
     if not SCAPY_AVAILABLE:
         raise RuntimeError("scapy is required but not installed. Install with: pip install scapy")
@@ -206,17 +263,20 @@ def capture_remote_id(interface: str, timeout: float | None = None, use_filter: 
     print("Listening for drone Remote ID WiFi beacons...")
     print("Press Ctrl+C to stop\n")
 
+    def handle_packet(packet):
+        process_packet(packet, emitter)
+
     def filtered_process_packet(packet):
         """Process packet with additional filtering if BPF filter failed."""
         if packet.haslayer(Dot11Beacon):
-            process_packet(packet)
+            process_packet(packet, emitter)
 
     try:
         if use_filter:
             # Try with BPF filter first (works in monitor mode)
             try:
                 sniff(
-                    iface=interface, prn=process_packet, filter="type mgt subtype beacon", timeout=timeout, store=False
+                    iface=interface, prn=handle_packet, filter="type mgt subtype beacon", timeout=timeout, store=False
                 )
             except Exception as filter_exc:
                 print(f"BPF filter failed ({filter_exc}), trying without filter...")
@@ -239,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, help="Capture timeout in seconds (default: run indefinitely)")
     parser.add_argument("--monitor-mode", action="store_true", help="Assume interface is already in monitor mode")
     parser.add_argument("--no-filter", action="store_true", help="Skip BPF filter (use if getting filter errors)")
+    add_emit_args(parser)
 
     args = parser.parse_args(argv)
 
@@ -252,11 +313,20 @@ def main(argv: list[str] | None = None) -> int:
         print()
 
     try:
-        capture_remote_id(args.interface, args.timeout, use_filter=not args.no_filter)
+        emitter = open_emitter(args)
+    except Exception as exc:
+        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        capture_remote_id(args.interface, args.timeout, use_filter=not args.no_filter, emitter=emitter)
         return 0
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if emitter is not None:
+            emitter.close()
 
 
 if __name__ == "__main__":
