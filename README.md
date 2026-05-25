@@ -1,33 +1,58 @@
 # CDDF — Citizen Drone Defense Force
 
-A multi-modal drone detection and analysis toolkit for edge deployments. CDDF combines audio, RF, WiFi Remote ID, and vision-based detection into a unified sensor platform, with a distributed architecture that bridges Kismet sensor data to RabbitMQ for centralized analysis.
+A multi-modal drone detection and analysis toolkit for edge deployments. CDDF combines audio, RF, WiFi/BLE Remote ID, and vision-based detection into a unified sensor platform. Detections reach a central RabbitMQ exchange either directly over the network or relayed across a LoRa mesh for off-grid nodes, alongside Kismet sensor data.
 
 ## Architecture
 
 ```mermaid
-graph TD
-    subgraph Edge["Edge Node (Raspberry Pi)"]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Segoe UI, Helvetica Neue, Arial, sans-serif",
+    "fontSize": "14px",
+    "lineColor": "#5b6b7b",
+    "clusterBkg": "#f7f9fc",
+    "clusterBorder": "#b8c2cc",
+    "titleColor": "#1f2d3d"
+  },
+  "flowchart": { "curve": "basis", "nodeSpacing": 45, "rankSpacing": 60, "padding": 14 }
+}}%%
+flowchart TD
+    subgraph Edge["🛰️ Edge Node — Raspberry Pi"]
+        direction TB
         subgraph Sensors["Physical Sensors"]
-            MIC["Microphone"]
-            HRF["HackRF One"]
-            RTL["RTL-SDR"]
-            WLAN["WiFi adapter\n(monitor mode)"]
-            BT["Bluetooth adapter"]
+            direction LR
+            MIC["🎤 Microphone"]
+            HRF["📡 HackRF One"]
+            RTL["📻 RTL-SDR"]
+            WLAN["📶 WiFi adapter<br/><i>monitor mode</i>"]
+            BT["🔵 Bluetooth adapter"]
         end
 
-        subgraph drone_tools["drone_tools"]
+        subgraph drone_tools["drone_tools — Detectors"]
+            direction LR
             AUD["drone-audio-monitor"]
             RF["drone-rf-detect"]
             RTLP["drone-rtl-power-detect"]
             WIFI["drone-wifi-remote-id"]
             BLE["drone-ble-remote-id"]
-            DB[("drone-db\n(SQLite reference catalog)")]
+            DB[("drone-db<br/><i>SQLite reference catalog</i>")]
+        end
+
+        subgraph Emit["Emit Layer — <tt>--emit-config</tt>"]
+            direction LR
+            EM(["DetectionEmitter"])
+            RMQS["RabbitMQSink<br/><i>direct AMQP</i>"]
+            LORS["LoRaSink"]
         end
 
         subgraph KismetStack["Kismet Stack"]
-            KIS["Kismet\n(WiFi + BLE data sources)"]
-            KQ["kismet-queuer\n(systemd service)"]
+            direction TB
+            KIS["Kismet<br/><i>WiFi + BLE data sources</i>"]
+            KQ["kismet-queuer<br/><i>systemd service</i>"]
         end
+
+        LORA["📶 Meshtastic radio<br/><i>USB / serial</i>"]
 
         MIC --> AUD
         HRF --> RF
@@ -36,18 +61,52 @@ graph TD
         BT --> BLE
         WLAN & BT --> KIS
         KIS -->|"WebSocket"| KQ
+
+        AUD & RF & RTLP & WIFI & BLE -->|"DetectionEvent"| EM
+        EM --> RMQS
+        EM --> LORS
+        LORS --> LORA
     end
 
-    subgraph Central["Central / Analysis"]
-        RMQ[("RabbitMQ\ntopic exchange")]
-        CONS["Consumers\n(alerting · logging · ML)"]
-        OPENAI["OpenAI API\n(vision · image gen)"]
+    subgraph Gateway["📡 Gateway Node — off-grid relay"]
+        direction LR
+        GLORA["📶 Meshtastic radio"]
+        L2Q["drone-lora-to-queue<br/><i>bridge</i>"]
+        GLORA --> L2Q
     end
 
-    KQ -->|"kismet.type.device"| RMQ
+    subgraph Central["☁️ Central / Analysis"]
+        direction TB
+        RMQ[("RabbitMQ<br/><i>topic exchange</i>")]
+        CONS["Consumers<br/><i>alerting · logging · ML</i>"]
+        OPENAI["OpenAI API<br/><i>vision · image gen</i>"]
+    end
+
+    LORA -.->|"LoRa mesh · Meshtastic"| GLORA
+    RMQS ==>|"cddf.detection.*"| RMQ
+    KQ ==>|"kismet.type.device"| RMQ
+    L2Q ==>|"cddf.detection.*"| RMQ
     RMQ --> CONS
-    CONS -.->|"drone-describe-image\ndrone-image-query"| OPENAI
+    CONS -.->|"drone-describe-image<br/>drone-image-query"| OPENAI
+
+    classDef sensor   fill:#dae8fc,stroke:#6c8ebf,stroke-width:1px,color:#102a43;
+    classDef detector fill:#d5e8d4,stroke:#82b366,stroke-width:1px,color:#11380f;
+    classDef emit     fill:#e1d5e7,stroke:#9673a6,stroke-width:1px,color:#3d2a4d;
+    classDef bridge   fill:#ffe6cc,stroke:#d79b00,stroke-width:1px,color:#5a3d00;
+    classDef radio    fill:#fff2cc,stroke:#d6b656,stroke-width:1px,color:#594a00;
+    classDef store    fill:#eef0f2,stroke:#5b6b7b,stroke-width:1px,color:#1f2d3d;
+    classDef central  fill:#b0e3e6,stroke:#0e8088,stroke-width:1px,color:#06363a;
+
+    class MIC,HRF,RTL,WLAN,BT sensor;
+    class AUD,RF,RTLP,WIFI,BLE detector;
+    class EM,RMQS,LORS emit;
+    class KIS,KQ,L2Q bridge;
+    class LORA,GLORA radio;
+    class DB,RMQ store;
+    class CONS,OPENAI central;
 ```
+
+> **Color key:** blue = sensors · green = detection software · purple = emit layer · amber = capture/queue bridges · yellow = LoRa radios · teal = central analysis. Solid bold arrows are AMQP publishes to RabbitMQ; the dashed arrow is the wireless LoRa mesh hop.
 
 ---
 
