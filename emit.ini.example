@@ -17,6 +17,13 @@ hostname =
 # Tag applied to messages this node publishes directly (the gateway uses "lora").
 source = local
 
+# Optional. Enrich detections with manufacturer/model from the reference DB
+# (drone-db) by matching the Remote ID serial. Off by default.
+classify = false
+# DB path to classify against; blank uses the default (~/.cddf/drones.db).
+# Populate it first with: drone-db seed
+classify_db =
+
 [rabbitmq]
 # Required when 'rabbitmq' is in [emit] sinks. Same broker as kismet-queuer.
 host = central-broker.local

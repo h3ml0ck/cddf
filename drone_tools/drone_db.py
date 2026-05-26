@@ -7,9 +7,11 @@ attributes such as Remote ID support, RF frequencies, and audio signatures.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sqlite3
 import sys
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,7 @@ _COLUMNS = [
     "id",
     "manufacturer",
     "model",
+    "manufacturer_code",
     "drone_type",
     "weight_g",
     "max_speed_ms",
@@ -39,6 +42,7 @@ CREATE TABLE IF NOT EXISTS drones (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     manufacturer      TEXT    NOT NULL,
     model             TEXT    NOT NULL,
+    manufacturer_code TEXT,
     drone_type        TEXT,
     weight_g          REAL,
     max_speed_ms      REAL,
@@ -61,12 +65,31 @@ def _resolve(db_path: str | Path | None) -> Path:
     return Path(db_path) if db_path is not None else DEFAULT_DB_PATH
 
 
+# Columns added after the original schema, applied to pre-existing databases on
+# connect so an old ~/.cddf/drones.db keeps working without a manual rebuild.
+_MIGRATIONS: dict[str, str] = {
+    "manufacturer_code": "TEXT",
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add any columns missing from an existing drones table (no-op if absent)."""
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='drones'").fetchone()
+    if tables is None:
+        return  # fresh DB; init_db's CREATE TABLE already has every column
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(drones)")}
+    for column, decl in _MIGRATIONS.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE drones ADD COLUMN {column} {decl}")
+
+
 def _connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     path = _resolve(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
+    _migrate(conn)
     return conn
 
 
@@ -93,6 +116,7 @@ def add_drone(
     *,
     manufacturer: str,
     model: str,
+    manufacturer_code: str | None = None,
     drone_type: str | None = None,
     weight_g: float | None = None,
     max_speed_ms: float | None = None,
@@ -113,15 +137,16 @@ def add_drone(
         cur = conn.execute(
             """\
             INSERT INTO drones (
-                manufacturer, model, drone_type, weight_g, max_speed_ms,
+                manufacturer, model, manufacturer_code, drone_type, weight_g, max_speed_ms,
                 max_range_m, num_rotors, remote_id_default, remote_id_wifi,
                 remote_id_ble, rf_frequency_mhz, rf_protocol,
                 audio_freq_min_hz, audio_freq_max_hz, notes
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 manufacturer,
                 model,
+                manufacturer_code,
                 drone_type,
                 weight_g,
                 max_speed_ms,
@@ -209,6 +234,156 @@ def search_drones(query: str, *, db_path: str | Path | None = None) -> list[dict
     return [dict(r) for r in rows]
 
 
+# Shortest normalized manufacturer/model name eligible for substring matching,
+# so trivially short names (e.g. "2+") don't match stray digits in a serial.
+_MIN_NAME_MATCH = 3
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and strip non-alphanumerics for forgiving substring matching."""
+    return "".join(ch for ch in text.lower() if ch.isalnum())
+
+
+def classify(serial: str | None, *, db_path: str | Path | None = None) -> dict[str, Any] | None:
+    """Best-effort match of a Remote ID serial number to a catalog drone.
+
+    Two strategies are tried in order:
+
+    1. **CTA-2063-A manufacturer code** - a compliant Remote ID serial begins
+       with a four-character assigned manufacturer code; it is matched against
+       the ``manufacturer_code`` column (case-insensitive).
+    2. **Name embedding** - some serials embed the model or manufacturer name;
+       a catalog model/manufacturer that appears within the serial matches,
+       preferring the more specific model match.
+
+    Returns the matched drone row (dict) or ``None``. This is a heuristic aid
+    for enriching detections, not an authoritative identification.
+    """
+    if not serial:
+        return None
+
+    with _connect(db_path) as conn:
+        if len(serial) >= 4:
+            row = conn.execute(
+                "SELECT * FROM drones WHERE manufacturer_code IS NOT NULL AND UPPER(manufacturer_code) = UPPER(?)",
+                (serial[:4],),
+            ).fetchone()
+            if row is not None:
+                return dict(row)
+
+        norm = _normalize(serial)
+        if not norm:
+            return None
+        rows = conn.execute("SELECT * FROM drones").fetchall()
+        # Prefer a model-name hit (more specific) over a manufacturer-only hit.
+        # Require >= 3 chars so short names like "2+" don't match stray digits.
+        for r in rows:
+            model_n = _normalize(r["model"] or "")
+            if len(model_n) >= _MIN_NAME_MATCH and model_n in norm:
+                return dict(r)
+        for r in rows:
+            man_n = _normalize(r["manufacturer"] or "")
+            if len(man_n) >= _MIN_NAME_MATCH and man_n in norm:
+                return dict(r)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Bulk import / seed
+# ---------------------------------------------------------------------------
+
+# Name of the curated dataset bundled inside the package (drone_tools/data/).
+_BUNDLED_DATASET = "known_drones.json"
+
+_FLOAT_COLS = {"weight_g", "max_speed_ms", "max_range_m", "audio_freq_min_hz", "audio_freq_max_hz"}
+_INT_COLS = {"num_rotors"}
+_BOOL_COLS = {"remote_id_default", "remote_id_wifi", "remote_id_ble"}
+_TRUE = {"1", "true", "yes", "y", "t"}
+
+
+def _coerce_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Keep only known columns and coerce values to their SQL types.
+
+    Works for both JSON (already typed) and CSV (all strings). Empty strings and
+    None are dropped so add_drone falls back to its defaults.
+    """
+    allowed = set(_COLUMNS) - {"id"}
+    out: dict[str, Any] = {}
+    for key, value in record.items():
+        if key not in allowed or value is None or value == "":
+            continue
+        if key in _BOOL_COLS:
+            out[key] = value if isinstance(value, bool) else str(value).strip().lower() in _TRUE
+        elif key in _FLOAT_COLS:
+            out[key] = float(value)
+        elif key in _INT_COLS:
+            out[key] = int(value)
+        else:
+            out[key] = value
+    return out
+
+
+def _load_records(source: str | Path) -> list[dict[str, Any]]:
+    """Read drone records from a .json (list of objects) or .csv (header row) file."""
+    path = Path(source)
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() == ".csv":
+        return list(csv.DictReader(text.splitlines()))
+    data = json.loads(text)
+    if not isinstance(data, list):
+        raise ValueError("JSON import file must contain a list of drone objects")
+    return data
+
+
+def import_records(
+    records: list[dict[str, Any]],
+    *,
+    db_path: str | Path | None = None,
+    replace: bool = False,
+) -> tuple[int, int]:
+    """Insert drone records. Returns ``(imported, skipped)``.
+
+    A record duplicating an existing (manufacturer, model) is skipped unless
+    ``replace`` is set, in which case its row is updated in place. Records
+    missing manufacturer or model are skipped.
+    """
+    imported = skipped = 0
+    init_db(db_path=db_path)
+    for raw in records:
+        fields = _coerce_record(raw)
+        if not fields.get("manufacturer") or not fields.get("model"):
+            skipped += 1
+            continue
+        try:
+            add_drone(db_path=db_path, **fields)
+            imported += 1
+        except sqlite3.IntegrityError:
+            if not replace:
+                skipped += 1
+                continue
+            with _connect(db_path) as conn:
+                row = conn.execute(
+                    "SELECT id FROM drones WHERE manufacturer = ? AND model = ?",
+                    (fields["manufacturer"], fields["model"]),
+                ).fetchone()
+            if row is not None and update_drone(int(row["id"]), db_path=db_path, **fields):
+                imported += 1
+            else:
+                skipped += 1
+    return imported, skipped
+
+
+def import_drones(source: str | Path, *, db_path: str | Path | None = None, replace: bool = False) -> tuple[int, int]:
+    """Import drones from a JSON or CSV file. Returns ``(imported, skipped)``."""
+    return import_records(_load_records(source), db_path=db_path, replace=replace)
+
+
+def seed(*, db_path: str | Path | None = None, replace: bool = False) -> tuple[int, int]:
+    """Populate the catalog from the dataset bundled with the package."""
+    text = resources.files("drone_tools").joinpath("data").joinpath(_BUNDLED_DATASET).read_text(encoding="utf-8")
+    return import_records(json.loads(text), db_path=db_path, replace=replace)
+
+
 # ---------------------------------------------------------------------------
 # CLI helpers
 # ---------------------------------------------------------------------------
@@ -261,10 +436,20 @@ def main(argv: list[str] | None = None) -> int:
     # init
     sub.add_parser("init", help="Create/verify the database")
 
+    # seed
+    p_seed = sub.add_parser("seed", help="Populate the catalog from the bundled dataset")
+    p_seed.add_argument("--replace", action="store_true", help="Update existing rows instead of skipping them")
+
+    # import
+    p_import = sub.add_parser("import", help="Import drones from a JSON or CSV file")
+    p_import.add_argument("file", help="Path to a .json (list of objects) or .csv (header row) file")
+    p_import.add_argument("--replace", action="store_true", help="Update existing rows instead of skipping them")
+
     # add
     p_add = sub.add_parser("add", help="Add a drone to the catalog")
     p_add.add_argument("--manufacturer", required=True)
     p_add.add_argument("--model", required=True)
+    p_add.add_argument("--manufacturer-code", help="CTA-2063-A 4-char Remote ID manufacturer code")
     p_add.add_argument("--type", dest="drone_type")
     p_add.add_argument("--weight-g", type=float)
     p_add.add_argument("--max-speed-ms", type=float)
@@ -291,6 +476,11 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("query")
     p_search.add_argument("--json", action="store_true")
 
+    # identify
+    p_ident = sub.add_parser("identify", help="Match a Remote ID serial to a catalog drone")
+    p_ident.add_argument("serial", help="Remote ID serial / UAS ID to classify")
+    p_ident.add_argument("--json", action="store_true")
+
     # show
     p_show = sub.add_parser("show", help="Show a drone by ID")
     p_show.add_argument("id", type=int)
@@ -301,6 +491,7 @@ def main(argv: list[str] | None = None) -> int:
     p_upd.add_argument("id", type=int)
     p_upd.add_argument("--manufacturer")
     p_upd.add_argument("--model")
+    p_upd.add_argument("--manufacturer-code")
     p_upd.add_argument("--type", dest="drone_type")
     p_upd.add_argument("--weight-g", type=float)
     p_upd.add_argument("--max-speed-ms", type=float)
@@ -332,11 +523,20 @@ def main(argv: list[str] | None = None) -> int:
             path = init_db(db_path=db)
             print(f"Database ready at {path}")
 
+        elif args.command == "seed":
+            imported, skipped = seed(db_path=db, replace=args.replace)
+            print(f"Seeded {imported} drone(s) from the bundled dataset ({skipped} skipped).")
+
+        elif args.command == "import":
+            imported, skipped = import_drones(args.file, db_path=db, replace=args.replace)
+            print(f"Imported {imported} drone(s) from {args.file} ({skipped} skipped).")
+
         elif args.command == "add":
             init_db(db_path=db)
             row_id = add_drone(
                 manufacturer=args.manufacturer,
                 model=args.model,
+                manufacturer_code=args.manufacturer_code,
                 drone_type=args.drone_type,
                 weight_g=args.weight_g,
                 max_speed_ms=args.max_speed_ms,
@@ -369,6 +569,17 @@ def main(argv: list[str] | None = None) -> int:
             drones = search_drones(args.query, db_path=db)
             _print_table(drones, as_json=args.json)
 
+        elif args.command == "identify":
+            init_db(db_path=db)
+            match = classify(args.serial, db_path=db)
+            if match is None:
+                if args.json:
+                    print("null")
+                else:
+                    print(f"No catalog match for serial {args.serial!r}.")
+                return 1
+            _print_drone(match, as_json=args.json)
+
         elif args.command == "show":
             init_db(db_path=db)
             d = get_drone(args.id, db_path=db)
@@ -383,6 +594,7 @@ def main(argv: list[str] | None = None) -> int:
             for key in (
                 "manufacturer",
                 "model",
+                "manufacturer_code",
                 "drone_type",
                 "weight_g",
                 "max_speed_ms",

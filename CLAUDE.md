@@ -119,9 +119,15 @@ ansible-playbook playbook.yml -i inventory -u pi --become --ask-become-pass
   - Uses scapy for packet sniffing (requires monitor mode)
 
 - **Vision Analysis** (`image_query.py`, `drone_description.py`)
-  - OpenAI DALL-E for image generation from text prompts
-  - OpenAI Vision API for drone type identification in images
+  - OpenAI image model for image generation from text prompts (`--model`/`--size`/`--n`; default model named explicitly, not the SDK default)
+  - OpenAI Vision API for drone type identification in images (`describe_drone` for free text; `classify_drone` returns structured manufacturer/model/type/confidence)
+  - `drone-describe-image --emit-config` publishes a `VISION` `DetectionEvent` (make/model from `classify_drone`) through the node's sinks
   - Requires `OPENAI_API_KEY` environment variable
+
+- **Reference Database** (`drone_db.py`)
+  - SQLite catalog of known drones (`drone-db` CLI: `init`/`seed`/`import`/`add`/`list`/`search`/`show`/`update`/`remove`/`identify`); default DB at `~/.cddf/drones.db`
+  - `seed` loads the bundled `drone_tools/data/known_drones.json`; `import` ingests JSON/CSV; schema migrates old DBs in place (adds `manufacturer_code`)
+  - `classify(serial)` matches a Remote ID serial to a catalog row (CTA-2063-A `manufacturer_code` prefix, then manufacturer/model name embedding). Used by the emit-layer enricher to fill in a detection's make/model
 
 - **Visualization** (`rtl_power_visualization.py`)
   - Creates frequency spectrum heatmaps from RTL-SDR output
@@ -144,6 +150,8 @@ ansible-playbook playbook.yml -i inventory -u pi --become --ask-become-pass
   - `RabbitMQSink` publishes directly to the central broker over AMQP (runs aio-pika on a background loop so its `emit()` is synchronous and non-blocking for sync detectors); `LoRaSink` broadcasts over the mesh (off-grid); `StdoutSink` prints locally
   - Per-sink failures are isolated — a dead broker or unplugged radio never stops the other sinks or the detector
   - Topology is pure config: `build_emitter`/`load_emitter` read an `[emit] sinks = ...` INI section (see `emit.ini.example`). Hybrid nodes set `sinks = rabbitmq, lora` to publish directly *and* relay over LoRa
+  - Optional enrichment is also config: `[emit] classify = true` (+ `classify_db`) makes the emitter run a `drone_db`-backed enricher that fills in `manufacturer`/`model` from a detection's Remote ID serial before fan-out (failures isolated like a sink's)
+  - `RabbitMQSink` publishes through the shared `drone_tools/amqp.py` (`AmqpPublisher`), the same client the LoRa→RabbitMQ bridge uses — connect/declare/publish-with-reconnect live in one place
   - Owns the canonical `format_detection_message`/`routing_key`/`event_to_dict` (lora_to_queue imports them); `drone-emit-test` sends one sample event through a node's configured emitter to verify setup
   - `RabbitMQSink` needs the `amqp` extra, `LoRaSink` the `lora` extra; a hybrid node installs `pip install -e ".[amqp,lora]"`
   - **Every detector accepts `--emit-config PATH`** (added via `add_emit_args`/`open_emitter`): without it detections only print; with it they're also emitted to the configured sinks. Continuous detectors (audio monitor, Wi-Fi, BLE) emit per detection; one-shot detectors (audio file, RF, RTL) emit once if a drone is found. The Wi-Fi path combines Basic ID + Location/Vector from one beacon into a single event; `RabbitMQSink.close()` drains pending events so one-shot emits aren't lost

@@ -43,4 +43,4 @@ jobs:
         run: mypy drone_tools
 
       - name: Pytest
-        run: pytest --cov=drone_tools --cov-report=term-missing
+        run: pytest --cov=drone_tools --cov-report=term-missing --cov-fail-under=65

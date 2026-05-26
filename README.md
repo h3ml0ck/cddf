@@ -191,9 +191,14 @@ drone-wifi-remote-id wlan0 --no-filter
 ```bash
 # Identify drone type from an image
 drone-describe-image path/to/drone_image.jpg
+drone-describe-image path/to/drone_image.jpg --model gpt-4o   # override the model
+
+# Identify and emit a structured VISION detection to your configured sinks
+drone-describe-image path/to/drone_image.jpg --emit-config emit.ini
 
 # Generate a drone image from a text prompt
 drone-image-query "a DJI Mavic flying over a forest"
+drone-image-query --model dall-e-3 --size 1024x1024 --n 1 "a quadcopter at dusk"
 ```
 
 **BLE Remote ID (ASTM F3411)**
@@ -209,10 +214,22 @@ drone-ble-remote-id -v        # Verbose with raw hex
 # Initialize the database (~/.cddf/drones.db)
 drone-db init
 
-# Add a drone to the catalog
+# Populate it with the bundled catalog of common drones
+drone-db seed
+
+# Or import your own catalog (JSON list of objects, or CSV with a header row)
+drone-db import my_drones.json
+drone-db import my_drones.csv --replace   # update rows that already exist
+
+# Add a drone to the catalog (--manufacturer-code is the CTA-2063-A Remote ID code)
 drone-db add --manufacturer DJI --model "Mavic 3" --type quadcopter \
+  --manufacturer-code 1581 \
   --remote-id-default --remote-id-wifi --remote-id-ble \
   --rf-frequency-mhz "2400,5800" --rf-protocol OcuSync --num-rotors 4
+
+# Match a Remote ID serial to a catalog drone (manufacturer-code, then name)
+drone-db identify 1581F4F2C8A1
+drone-db identify 1581F4F2C8A1 --json
 
 # List all drones (filter with --manufacturer, --type, --remote-id-only)
 drone-db list
@@ -228,6 +245,11 @@ drone-db show 1 --json
 drone-db update 1 --weight-g 895
 drone-db remove 1 --force
 ```
+
+Detectors can automatically enrich their detections with make/model from this
+catalog: set `classify = true` (and optionally `classify_db`) in the `[emit]`
+section of your `emit.ini`, and any detection carrying a Remote ID serial gets
+its `manufacturer`/`model` filled in before being published.
 
 **Testing / simulation**
 ```bash

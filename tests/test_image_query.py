@@ -60,6 +60,23 @@ def test_query_image_custom_params(monkeypatch):
     assert _fake_capture["kwargs"]["size"] == "512x512"
 
 
+def test_query_image_passes_explicit_default_model(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    iq.query_image("a drone")
+    assert _fake_capture["kwargs"]["model"] == iq.DEFAULT_MODEL
+
+
+def test_main_model_size_n_flags(capsys, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    ret = iq.main(["--model", "dall-e-2", "--size", "512x512", "--n", "2", "a", "drone"])
+    assert ret == 0
+    kwargs = _fake_capture["kwargs"]
+    assert kwargs["model"] == "dall-e-2"
+    assert kwargs["size"] == "512x512"
+    assert kwargs["n"] == 2
+    assert kwargs["prompt"] == "a drone"
+
+
 def test_query_image_missing_api_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(EnvironmentError, match="OPENAI_API_KEY"):
