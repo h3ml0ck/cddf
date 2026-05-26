@@ -31,14 +31,15 @@ import argparse
 import asyncio
 import configparser
 import contextlib
-import json
 import logging
 import socket
 import sys
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime, timezone
 
+from drone_tools.amqp import AIO_PIKA_AVAILABLE, AmqpPublisher, build_amqp_url
 from drone_tools.drone_lora import (
     MESHTASTIC_AVAILABLE,
     DetectionEvent,
@@ -46,13 +47,6 @@ from drone_tools.drone_lora import (
     DetectorType,
     MeshLink,
 )
-
-try:
-    import aio_pika
-
-    AIO_PIKA_AVAILABLE = True
-except ImportError:
-    AIO_PIKA_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +68,8 @@ def event_to_dict(event: DetectionEvent) -> dict:
         "rssi": event.rssi,
         "drone_id": event.drone_id,
         "operator_id": event.operator_id,
+        "manufacturer": event.manufacturer,
+        "model": event.model,
     }
 
 
@@ -197,7 +193,7 @@ class RabbitMQSink(DetectionSink):
             raise RuntimeError(
                 'aio-pika is required for RabbitMQSink but not installed. Install with: pip install -e ".[amqp]"'
             )
-        self._url = f"amqp://{username}:{password}@{host}:{port}/{virtual_host}"
+        self._url = build_amqp_url(host, port, username, password, virtual_host)
         self._exchange_name = exchange
         self._exchange_type = exchange_type
         self.source = source
@@ -209,9 +205,7 @@ class RabbitMQSink(DetectionSink):
         self._aqueue: asyncio.Queue | None = None
         self._stop: asyncio.Event | None = None
         self._ready = threading.Event()
-        self._connection: aio_pika.abc.AbstractRobustConnection | None = None
-        self._channel: aio_pika.abc.AbstractChannel | None = None
-        self._exchange: aio_pika.abc.AbstractExchange | None = None
+        self._publisher_obj: AmqpPublisher | None = None
 
     def start(self) -> RabbitMQSink:
         self._thread = threading.Thread(target=self._thread_main, name="rabbitmq-sink", daemon=True)
@@ -263,6 +257,7 @@ class RabbitMQSink(DetectionSink):
         self._loop = asyncio.get_running_loop()
         self._aqueue = asyncio.Queue(maxsize=self.queue_maxsize)
         self._stop = asyncio.Event()
+        self._publisher_obj = AmqpPublisher(self._url, self._exchange_name, self._exchange_type, log=logger)
         self._ready.set()
         try:
             await self._connect_with_retry()
@@ -286,75 +281,47 @@ class RabbitMQSink(DetectionSink):
             logger.warning("RabbitMQSink queue full, dropping detection")
 
     async def _connect_with_retry(self) -> None:
-        assert self._stop is not None
+        assert self._stop is not None and self._publisher_obj is not None
         delay = 1.0
         while not self._stop.is_set():
-            if await self._connect():
+            if await self._publisher_obj.connect():
                 return
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._stop.wait(), timeout=delay)
             delay = min(delay * 2, 30.0)
 
-    async def _connect(self) -> bool:
-        try:
-            self._connection = await aio_pika.connect_robust(self._url)
-            self._channel = await self._connection.channel()
-            self._exchange = await self._channel.declare_exchange(
-                self._exchange_name, aio_pika.ExchangeType(self._exchange_type), durable=True
-            )
-            logger.info("RabbitMQSink connected to exchange: %s", self._exchange_name)
-            return True
-        except Exception as e:
-            # Log type only to avoid leaking credentials embedded in the URL.
-            logger.error("RabbitMQSink failed to connect: %s", type(e).__name__)
-            logger.debug("RabbitMQSink connection error detail: %s", e)
-            return False
-
     async def _publisher(self) -> None:
-        assert self._aqueue is not None
+        assert self._aqueue is not None and self._publisher_obj is not None
         while True:
             message = await self._aqueue.get()
             try:
-                await self._publish(message)
+                await self._publisher_obj.publish(routing_key(message["detector"]), message)
             finally:
                 self._aqueue.task_done()
 
-    async def _publish(self, message: dict) -> None:
-        try:
-            if self._channel is None or self._channel.is_closed:
-                if not await self._connect():
-                    return
-            if self._exchange is None:
-                return
-            key = routing_key(message["detector"])
-            body = json.dumps(message, default=str).encode()
-            await self._exchange.publish(
-                aio_pika.Message(
-                    body=body,
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                    content_type="application/json",
-                ),
-                routing_key=key,
-            )
-            logger.debug("RabbitMQSink published %s (%d bytes)", key, len(body))
-        except Exception as e:
-            logger.error("RabbitMQSink failed to publish: %s", type(e).__name__)
-            logger.debug("RabbitMQSink publish error detail: %s", e)
-
     async def _cleanup(self) -> None:
-        if self._connection is not None and not self._connection.is_closed:
-            with contextlib.suppress(Exception):
-                await self._connection.close()
+        if self._publisher_obj is not None:
+            await self._publisher_obj.close()
 
 
 # --- emitter ---------------------------------------------------------------
 
 
 class DetectionEmitter:
-    """Fan a detection event out to several sinks, isolating per-sink failures."""
+    """Fan a detection event out to several sinks, isolating per-sink failures.
 
-    def __init__(self, sinks: list[DetectionSink]) -> None:
+    An optional ``enricher`` runs once per event before fan-out (e.g. to attach
+    manufacturer/model from the reference DB). It mutates the event in place and
+    its failures are isolated like a sink's.
+    """
+
+    def __init__(
+        self,
+        sinks: list[DetectionSink],
+        enricher: Callable[[DetectionEvent], None] | None = None,
+    ) -> None:
         self.sinks = list(sinks)
+        self.enricher = enricher
 
     def start(self) -> DetectionEmitter:
         for sink in self.sinks:
@@ -362,6 +329,12 @@ class DetectionEmitter:
         return self
 
     def emit(self, event: DetectionEvent) -> None:
+        if self.enricher is not None:
+            try:
+                self.enricher(event)
+            except Exception as e:
+                logger.error("detection enricher failed: %s", type(e).__name__)
+                logger.debug("enricher error detail: %s", e)
         for sink in self.sinks:
             try:
                 sink.emit(event)
@@ -412,7 +385,32 @@ def build_emitter(config: configparser.ConfigParser) -> DetectionEmitter:
         else:
             raise ValueError(f"unknown sink '{name}' in [emit] sinks (expected rabbitmq, lora, or stdout)")
 
-    return DetectionEmitter(sinks)
+    enricher = None
+    if config.getboolean("emit", "classify", fallback=False):
+        db_path = config.get("emit", "classify_db", fallback="") or None
+        enricher = make_db_enricher(db_path)
+
+    return DetectionEmitter(sinks, enricher=enricher)
+
+
+def make_db_enricher(db_path: str | None = None) -> Callable[[DetectionEvent], None]:
+    """Return an enricher that fills in manufacturer/model from the reference DB.
+
+    Looks up ``event.drone_id`` via ``drone_db.classify`` and copies the matched
+    make/model onto the event. No-op when the event already has them, carries no
+    ID, or no catalog match is found. ``db_path=None`` uses the default DB.
+    """
+    from drone_tools import drone_db
+
+    def enrich(event: DetectionEvent) -> None:
+        if event.manufacturer or event.model or not event.drone_id:
+            return
+        match = drone_db.classify(event.drone_id, db_path=db_path)
+        if match:
+            event.manufacturer = match.get("manufacturer")
+            event.model = match.get("model")
+
+    return enrich
 
 
 def _build_rabbitmq_sink(config: configparser.ConfigParser, hostname: str, source: str) -> RabbitMQSink:

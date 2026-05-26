@@ -1,0 +1,156 @@
+[
+  {
+    "manufacturer": "DJI",
+    "model": "Mini 4 Pro",
+    "drone_type": "quadcopter",
+    "weight_g": 249,
+    "num_rotors": 4,
+    "remote_id_default": true,
+    "remote_id_wifi": true,
+    "remote_id_ble": true,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync (O4)",
+    "notes": "Sub-250g. Specs approximate; verify against manufacturer data."
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "Mini 3 Pro",
+    "drone_type": "quadcopter",
+    "weight_g": 249,
+    "num_rotors": 4,
+    "remote_id_default": true,
+    "remote_id_wifi": true,
+    "remote_id_ble": true,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync (O3)",
+    "notes": "Sub-250g."
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "Air 3",
+    "drone_type": "quadcopter",
+    "weight_g": 720,
+    "num_rotors": 4,
+    "remote_id_default": true,
+    "remote_id_wifi": true,
+    "remote_id_ble": true,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync (O4)"
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "Mavic 3",
+    "drone_type": "quadcopter",
+    "weight_g": 895,
+    "num_rotors": 4,
+    "remote_id_default": true,
+    "remote_id_wifi": true,
+    "remote_id_ble": true,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync (O3+)"
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "Avata",
+    "drone_type": "fpv",
+    "weight_g": 410,
+    "num_rotors": 4,
+    "remote_id_default": true,
+    "remote_id_wifi": true,
+    "remote_id_ble": true,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync (O3)"
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "FPV",
+    "drone_type": "fpv",
+    "weight_g": 795,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync (O3)"
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "Phantom 4 Pro V2",
+    "drone_type": "quadcopter",
+    "weight_g": 1375,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync"
+  },
+  {
+    "manufacturer": "DJI",
+    "model": "Matrice 300 RTK",
+    "drone_type": "quadcopter",
+    "weight_g": 6300,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "OcuSync Enterprise",
+    "notes": "Industrial/enterprise platform."
+  },
+  {
+    "manufacturer": "Autel Robotics",
+    "model": "EVO II Pro",
+    "drone_type": "quadcopter",
+    "weight_g": 1191,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "SkyLink"
+  },
+  {
+    "manufacturer": "Autel Robotics",
+    "model": "EVO Lite+",
+    "drone_type": "quadcopter",
+    "weight_g": 835,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "SkyLink 2.0"
+  },
+  {
+    "manufacturer": "Skydio",
+    "model": "X10",
+    "drone_type": "quadcopter",
+    "num_rotors": 4,
+    "remote_id_default": true,
+    "remote_id_wifi": true,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "WiFi",
+    "notes": "Autonomous enterprise/public-safety platform."
+  },
+  {
+    "manufacturer": "Skydio",
+    "model": "2+",
+    "drone_type": "quadcopter",
+    "weight_g": 800,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "WiFi"
+  },
+  {
+    "manufacturer": "Parrot",
+    "model": "Anafi",
+    "drone_type": "quadcopter",
+    "weight_g": 320,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "WiFi"
+  },
+  {
+    "manufacturer": "Holy Stone",
+    "model": "HS720",
+    "drone_type": "quadcopter",
+    "weight_g": 459,
+    "num_rotors": 4,
+    "remote_id_default": false,
+    "rf_frequency_mhz": "2400,5800",
+    "rf_protocol": "WiFi"
+  }
+]

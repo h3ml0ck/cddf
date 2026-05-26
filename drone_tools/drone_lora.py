@@ -81,6 +81,7 @@ class DetectorType(IntEnum):
     WIFI_REMOTE_ID = 3
     BLE_REMOTE_ID = 4
     RTL_POWER = 5
+    VISION = 6
 
 
 @dataclass
@@ -100,6 +101,11 @@ class DetectionEvent:
     rssi: int | None = None  # dBm, signed
     drone_id: str | None = None  # ASTM Remote ID serial / UAS ID
     operator_id: str | None = None  # ASTM operator ID
+    # Local enrichment from the drone reference DB (see drone_db.classify). These
+    # are NOT put on the LoRa wire by encode_event -- they stay small and a
+    # receiving gateway can re-classify from drone_id with its own catalog.
+    manufacturer: str | None = None
+    model: str | None = None
 
 
 def _clamp(value: int, low: int, high: int) -> int:

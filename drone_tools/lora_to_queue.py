@@ -28,11 +28,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import configparser
-import json
 import logging
 import socket
 import sys
 
+from drone_tools.amqp import AIO_PIKA_AVAILABLE, AmqpPublisher, build_amqp_url
 from drone_tools.detection_emit import (
     event_to_dict,  # re-exported for callers/tests
     format_detection_message,
@@ -43,13 +43,6 @@ from drone_tools.drone_lora import (
     MeshLink,
     ReceivedEvent,
 )
-
-try:
-    import aio_pika
-
-    AIO_PIKA_AVAILABLE = True
-except ImportError:
-    AIO_PIKA_AVAILABLE = False
 
 __all__ = ["event_to_dict", "routing_key", "format_message", "LoraToQueue", "main"]
 
@@ -85,9 +78,7 @@ class LoraToQueue:
         self.host = host
         self.hostname = socket.gethostname()
         self.logger = self._setup_logging()
-        self.connection: aio_pika.abc.AbstractRobustConnection | None = None
-        self.channel: aio_pika.abc.AbstractChannel | None = None
-        self.exchange: aio_pika.abc.AbstractExchange | None = None
+        self.publisher: AmqpPublisher | None = None
         self._queue: asyncio.Queue | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -136,54 +127,21 @@ class LoraToQueue:
         return logging.getLogger(__name__)
 
     async def _connect_rabbitmq(self) -> bool:
-        try:
-            url = "amqp://{username}:{password}@{host}:{port}/{vhost}".format(
-                username=self.config.get("rabbitmq", "username"),
-                password=self.config.get("rabbitmq", "password"),
+        if self.publisher is None:
+            url = build_amqp_url(
                 host=self.config.get("rabbitmq", "host"),
                 port=self.config.getint("rabbitmq", "port"),
-                vhost=self.config.get("rabbitmq", "virtual_host"),
+                username=self.config.get("rabbitmq", "username"),
+                password=self.config.get("rabbitmq", "password"),
+                virtual_host=self.config.get("rabbitmq", "virtual_host"),
             )
-            self.connection = await aio_pika.connect_robust(url)
-            self.channel = await self.connection.channel()
-            exchange_name = self.config.get("rabbitmq", "exchange")
-            exchange_type = self.config.get("rabbitmq", "exchange_type", fallback="topic")
-            self.exchange = await self.channel.declare_exchange(
-                exchange_name, aio_pika.ExchangeType(exchange_type), durable=True
+            self.publisher = AmqpPublisher(
+                url,
+                self.config.get("rabbitmq", "exchange"),
+                self.config.get("rabbitmq", "exchange_type", fallback="topic"),
+                log=self.logger,
             )
-            self.logger.info("Connected to RabbitMQ exchange: %s", exchange_name)
-            return True
-        except Exception as e:
-            # Log type only to avoid leaking credentials embedded in the URL.
-            self.logger.error("Failed to connect to RabbitMQ: %s", type(e).__name__)
-            self.logger.debug("RabbitMQ connection error detail: %s", e)
-            return False
-
-    async def _publish(self, message: dict) -> bool:
-        try:
-            if not self.channel or self.channel.is_closed:
-                if not await self._connect_rabbitmq():
-                    return False
-            if not self.exchange:
-                self.logger.error("Exchange is not initialized, cannot publish message")
-                return False
-
-            key = routing_key(message["detector"])
-            body = json.dumps(message, default=str).encode()
-            await self.exchange.publish(
-                aio_pika.Message(
-                    body=body,
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                    content_type="application/json",
-                ),
-                routing_key=key,
-            )
-            self.logger.debug("Published %s (%d bytes)", key, len(body))
-            return True
-        except Exception as e:
-            self.logger.error("Failed to publish message to RabbitMQ: %s", type(e).__name__)
-            self.logger.debug("RabbitMQ publish error detail: %s", e)
-            return False
+        return await self.publisher.connect()
 
     def _enqueue(self, received: ReceivedEvent) -> None:
         """Runs on the event loop thread; bounded, drops on overflow."""
@@ -201,8 +159,8 @@ class LoraToQueue:
             loop.call_soon_threadsafe(self._enqueue, received)
 
     async def cleanup(self) -> None:
-        if self.connection and not self.connection.is_closed:
-            await self.connection.close()
+        if self.publisher is not None:
+            await self.publisher.close()
             self.logger.info("RabbitMQ connection closed")
 
     async def run(self) -> None:
@@ -227,7 +185,8 @@ class LoraToQueue:
             while True:
                 received = await self._queue.get()
                 message = format_message(received, self.hostname)
-                if not await self._publish(message):
+                assert self.publisher is not None  # connected above
+                if not await self.publisher.publish(routing_key(message["detector"]), message):
                     self.logger.error("Failed to publish detection, continuing...")
         except asyncio.CancelledError:
             raise

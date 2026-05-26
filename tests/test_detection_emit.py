@@ -9,6 +9,7 @@ import configparser
 
 import pytest
 
+import drone_tools.drone_db as drone_db
 from drone_tools.detection_emit import (
     DetectionEmitter,
     DetectionSink,
@@ -16,6 +17,7 @@ from drone_tools.detection_emit import (
     build_emitter,
     event_to_dict,
     format_detection_message,
+    make_db_enricher,
     routing_key,
 )
 from drone_tools.drone_lora import DetectionEvent, DetectorType
@@ -155,3 +157,77 @@ def test_stdout_sink_emits(capsys):
     out = capsys.readouterr().out
     assert "WIFI_REMOTE_ID" in out
     assert "drone_id=D1" in out
+
+
+# --- enrichment ------------------------------------------------------------
+
+
+def test_event_to_dict_includes_make_model():
+    d = event_to_dict(DetectionEvent(detector=DetectorType.VISION, timestamp=1, manufacturer="DJI", model="Avata"))
+    assert d["manufacturer"] == "DJI"
+    assert d["model"] == "Avata"
+
+
+def test_emitter_runs_enricher_before_fanout():
+    def enrich(event):
+        event.manufacturer = "Enriched"
+
+    sink = _RecordingSink()
+    emitter = DetectionEmitter([sink], enricher=enrich)
+    emitter.emit(DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="X"))
+    assert sink.events[0].manufacturer == "Enriched"
+
+
+def test_emitter_isolates_enricher_failure():
+    def boom(event):
+        raise RuntimeError("enrich boom")
+
+    sink = _RecordingSink()
+    emitter = DetectionEmitter([sink], enricher=boom)
+    event = DetectionEvent(detector=DetectorType.AUDIO, timestamp=1)
+    emitter.emit(event)  # must not raise; sink still receives the event
+    assert sink.events == [event]
+
+
+@pytest.fixture()
+def seeded_db(tmp_path):
+    path = tmp_path / "drones.db"
+    drone_db.init_db(db_path=path)
+    drone_db.add_drone(manufacturer="DJI", model="Avata", db_path=path)
+    return path
+
+
+def test_db_enricher_populates_make_model(seeded_db):
+    enrich = make_db_enricher(str(seeded_db))
+    event = DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="op-Avata-9")
+    enrich(event)
+    assert event.manufacturer == "DJI"
+    assert event.model == "Avata"
+
+
+def test_db_enricher_noop_without_drone_id(seeded_db):
+    enrich = make_db_enricher(str(seeded_db))
+    event = DetectionEvent(detector=DetectorType.AUDIO, timestamp=1)
+    enrich(event)
+    assert event.manufacturer is None
+
+
+def test_db_enricher_skips_already_enriched(seeded_db):
+    enrich = make_db_enricher(str(seeded_db))
+    event = DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="op-Avata-9", manufacturer="Set")
+    enrich(event)
+    assert event.manufacturer == "Set"  # left untouched
+
+
+def test_build_emitter_wires_classify(seeded_db):
+    cfg = _config(f"[emit]\nsinks = stdout\nclassify = true\nclassify_db = {seeded_db}\n")
+    emitter = build_emitter(cfg)
+    sink = _RecordingSink()
+    emitter.sinks = [sink]
+    emitter.emit(DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="op-Avata-9"))
+    assert sink.events[0].model == "Avata"
+
+
+def test_build_emitter_no_classify_has_no_enricher():
+    emitter = build_emitter(_config("[emit]\nsinks = stdout\n"))
+    assert emitter.enricher is None

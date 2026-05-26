@@ -190,3 +190,71 @@ def test_main_handles_exception_and_returns_1(tmp_path, capsys, monkeypatch):
     captured = capsys.readouterr()
     assert ret == 1
     assert "Error describing drone: nope" in captured.err
+
+
+# --- structured classification --------------------------------------------
+
+
+def test_parse_classification_plain_json():
+    out = desc._parse_classification(
+        '{"manufacturer": "DJI", "model": "Avata", "drone_type": "fpv", "confidence": 0.9}'
+    )
+    assert out["manufacturer"] == "DJI"
+    assert out["model"] == "Avata"
+    assert out["confidence"] == 0.9
+
+
+def test_parse_classification_code_fenced():
+    fenced = '```json\n{"manufacturer": "Autel", "model": "EVO II"}\n```'
+    out = desc._parse_classification(fenced)
+    assert out["manufacturer"] == "Autel"
+    assert out["model"] == "EVO II"
+    assert out["drone_type"] is None
+
+
+def test_parse_classification_garbage_keeps_raw():
+    out = desc._parse_classification("I think it's a quadcopter")
+    assert out["manufacturer"] is None
+    assert out["raw"] == "I think it's a quadcopter"
+
+
+def test_classify_drone_returns_structured(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    img = tmp_path / "d.jpg"
+    img.write_bytes(b"\xff\xd8\xff")
+
+    def _json(**kwargs):
+        return types.SimpleNamespace(choices=[_FakeChoice('{"manufacturer": "DJI", "model": "Mini 4 Pro"}')])
+
+    def _factory(*_, **__):
+        client = _FakeClient(api_key="sk-test")
+        client.chat.completions.create = _json
+        return client
+
+    monkeypatch.setattr(desc.openai, "OpenAI", _factory)
+    result = desc.classify_drone(str(img))
+    assert result["manufacturer"] == "DJI"
+    assert result["model"] == "Mini 4 Pro"
+
+
+def test_main_emit_path_emits_vision_event(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    img = tmp_path / "d.jpg"
+    img.write_bytes(b"\xff\xd8\xff")
+    cfg = tmp_path / "emit.ini"
+    cfg.write_text("[emit]\nsinks = stdout\n")
+
+    def _json(**kwargs):
+        return types.SimpleNamespace(choices=[_FakeChoice('{"manufacturer": "DJI", "model": "Avata"}')])
+
+    def _factory(*_, **__):
+        client = _FakeClient(api_key="sk-test")
+        client.chat.completions.create = _json
+        return client
+
+    monkeypatch.setattr(desc.openai, "OpenAI", _factory)
+    ret = desc.main([str(img), "--emit-config", str(cfg)])
+    out = capsys.readouterr().out
+    assert ret == 0
+    assert "DJI" in out  # JSON summary line
+    assert "VISION" in out  # StdoutSink line for the emitted event

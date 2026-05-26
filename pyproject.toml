@@ -47,6 +47,9 @@ drone-emit-test = "drone_tools.detection_emit:main"
 where = ["."]
 include = ["drone_tools*"]
 
+[tool.setuptools.package-data]
+drone_tools = ["data/*.json"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"
