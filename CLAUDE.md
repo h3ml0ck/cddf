@@ -149,7 +149,8 @@ ansible-playbook playbook.yml -i inventory -u pi --become --ask-become-pass
   - Decouples detectors from transport: a detector calls `emitter.emit(DetectionEvent(...))` and a `DetectionEmitter` fans it out to the sinks a node is configured for
   - `RabbitMQSink` publishes directly to the central broker over AMQP (runs aio-pika on a background loop so its `emit()` is synchronous and non-blocking for sync detectors); `LoRaSink` broadcasts over the mesh (off-grid); `StdoutSink` prints locally
   - Per-sink failures are isolated — a dead broker or unplugged radio never stops the other sinks or the detector
-  - Topology is pure config: `build_emitter`/`load_emitter` read an `[emit] sinks = ...` INI section (see `emit.ini.example`). Hybrid nodes set `sinks = rabbitmq, lora` to publish directly *and* relay over LoRa
+  - Topology is pure config: `build_emitter`/`load_emitter` read an `[emit] sinks = ...` INI section (see `emit.ini.example`). Hybrid nodes set `sinks = rabbitmq, lora` to publish directly *and* relay over LoRa. `validate_config` checks INI structure before construction and returns human-readable errors
+  - Optional dedup: `[emit] dedup_interval = 30` suppresses duplicate detections of the same drone within a time window using `DetectionThrottle`, preventing duplicates when multiple sinks or overlapping sensors report the same drone
   - Optional enrichment is also config: `[emit] classify = true` (+ `classify_db`) makes the emitter run a `drone_db`-backed enricher that fills in `manufacturer`/`model` from a detection's Remote ID serial before fan-out (failures isolated like a sink's)
   - `RabbitMQSink` publishes through the shared `drone_tools/amqp.py` (`AmqpPublisher`), the same client the LoRa→RabbitMQ bridge uses — connect/declare/publish-with-reconnect live in one place
   - Owns the canonical `format_detection_message`/`routing_key`/`event_to_dict` (lora_to_queue imports them); `drone-emit-test` sends one sample event through a node's configured emitter to verify setup
@@ -164,14 +165,18 @@ All tools are registered as console scripts in `pyproject.toml` with `drone-*` p
 
 ### Test Suite
 
-Tests live in `tests/` and cover the core drone_tools modules:
+Tests live in `tests/` with shared fixtures in `conftest.py`. Coverage target is 65% (CI enforced). Modules covered:
 
-- `test_drone_audio_detection.py`
-- `test_drone_audio_monitor.py`
-- `test_drone_description.py`
-- `test_drone_rf_detection.py`
-- `test_drone_rtl_power_detection.py`
-- `test_drone_rtl_power_visualization.py`
+- `test_drone_audio_detection.py`, `test_drone_audio_monitor.py`
+- `test_drone_description.py`, `test_image_query.py`
+- `test_drone_rf_detection.py`, `test_drone_rtl_power_detection.py`, `test_drone_rtl_power_visualization.py`
+- `test_drone_wifi_remote_id.py`, `test_drone_ble_remote_id.py`
+- `test_drone_lora.py`, `test_lora_to_queue.py`
+- `test_drone_db.py`, `test_drone_db_extras.py`
+- `test_detection_emit.py`, `test_detector_emit_wiring.py`
+- `test_amqp.py`, `test_mock_sniffle_remote_id.py`
+
+The kismet-queuer app has its own tests in `kismet-queuer/tests/`.
 
 ### kismet-queuer Application
 

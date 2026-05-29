@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
-import time
+import logging
 
 try:
     from bleak import BleakScanner
@@ -32,6 +31,8 @@ from drone_tools.drone_wifi_remote_id import (
     parse_operator_id,
     parse_self_id,
 )
+
+logger = logging.getLogger(__name__)
 
 # BLE Remote ID service UUID (ASTM F3411, 16-bit UUID 0xFFFA)
 REMOTE_ID_SERVICE_UUID = "0000fffa-0000-1000-8000-00805f9b34fb"
@@ -104,14 +105,18 @@ def _make_callback(verbose: bool, emitter: DetectionEmitter | None = None):
             parsed = parse_ble_service_data(data)
             if not parsed:
                 continue
-            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"\n[{timestamp}] BLE Remote ID from {device.address} (RSSI: {adv.rssi} dBm)")
-            print(f"  Message Type: {parsed['message_type']}")
-            for key, value in parsed.items():
-                if key not in ("message_type", "raw_type", "data_length"):
-                    print(f"  {key}: {value}")
+            details = " ".join(
+                f"{k}={v}" for k, v in parsed.items() if k not in ("message_type", "raw_type", "data_length")
+            )
+            logger.info(
+                "BLE Remote ID from %s (RSSI: %s dBm): %s %s",
+                device.address,
+                adv.rssi,
+                parsed["message_type"],
+                details,
+            )
             if verbose:
-                print(f"  raw_hex: {data.hex()}")
+                logger.debug("raw_hex: %s", data.hex())
             if emitter is not None:
                 event = _event_from_ble(parsed, adv.rssi)
                 if event is not None:
@@ -135,9 +140,7 @@ async def capture_ble_remote_id(
     if not BLEAK_AVAILABLE:
         raise RuntimeError("bleak is required but not installed. Install with: pip install bleak")
 
-    print("Starting BLE Remote ID capture...")
-    print("Listening for ASTM F3411 Remote ID advertisements (UUID 0xFFFA)...")
-    print("Press Ctrl+C to stop\n")
+    logger.info("Starting BLE Remote ID capture (ASTM F3411, UUID 0xFFFA). Press Ctrl+C to stop.")
 
     async with BleakScanner(detection_callback=_make_callback(verbose, emitter)):
         if timeout is not None:
@@ -163,20 +166,23 @@ def main(argv: list[str] | None = None) -> int:
     add_emit_args(parser)
     args = parser.parse_args(argv)
 
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(message)s")
+
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logger.error("could not set up emitter: %s", exc)
         return 1
 
     try:
         asyncio.run(capture_ble_remote_id(timeout=args.timeout, verbose=args.verbose, emitter=emitter))
         return 0
     except KeyboardInterrupt:
-        print("\nCapture stopped.")
+        logger.info("Capture stopped.")
         return 0
     except Exception as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        logger.error("Error: %s", exc)
         return 1
     finally:
         if emitter is not None:

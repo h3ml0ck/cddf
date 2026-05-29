@@ -33,7 +33,6 @@ import configparser
 import contextlib
 import logging
 import socket
-import sys
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -313,15 +312,21 @@ class DetectionEmitter:
     An optional ``enricher`` runs once per event before fan-out (e.g. to attach
     manufacturer/model from the reference DB). It mutates the event in place and
     its failures are isolated like a sink's.
+
+    An optional ``dedup`` throttle suppresses duplicate events. When multiple
+    sinks (LoRa relay + direct AMQP) or multiple nodes report the same drone
+    within ``dedup_interval`` seconds, only the first one reaches consumers.
     """
 
     def __init__(
         self,
         sinks: list[DetectionSink],
         enricher: Callable[[DetectionEvent], None] | None = None,
+        dedup: DetectionThrottle | None = None,
     ) -> None:
         self.sinks = list(sinks)
         self.enricher = enricher
+        self.dedup = dedup
 
     def start(self) -> DetectionEmitter:
         for sink in self.sinks:
@@ -329,6 +334,9 @@ class DetectionEmitter:
         return self
 
     def emit(self, event: DetectionEvent) -> None:
+        if self.dedup is not None and not self.dedup.allow(event):
+            logger.debug("dedup suppressed %s event (drone_id=%s)", event.detector.name, event.drone_id)
+            return
         if self.enricher is not None:
             try:
                 self.enricher(event)
@@ -357,6 +365,53 @@ class DetectionEmitter:
 # --- config-driven construction --------------------------------------------
 
 
+_VALID_SINKS = {"rabbitmq", "lora", "stdout"}
+_REQUIRED_RABBITMQ_FIELDS = ("host", "port", "username", "password", "exchange")
+
+
+def validate_config(config: configparser.ConfigParser) -> list[str]:
+    """Check an emit config for structural errors.
+
+    Returns a list of human-readable error messages. An empty list means the
+    config is valid.
+    """
+    errors: list[str] = []
+
+    if not config.has_section("emit"):
+        errors.append("missing required [emit] section")
+        return errors
+
+    raw = config.get("emit", "sinks", fallback="").strip()
+    if not raw:
+        errors.append("[emit] sinks is empty; list at least one of: rabbitmq, lora, stdout")
+        return errors
+
+    names = [n.strip().lower() for n in raw.split(",") if n.strip()]
+    for name in names:
+        if name not in _VALID_SINKS:
+            errors.append(f"unknown sink '{name}' in [emit] sinks (expected rabbitmq, lora, or stdout)")
+
+    if "rabbitmq" in names:
+        if not config.has_section("rabbitmq"):
+            errors.append("[emit] lists 'rabbitmq' but the [rabbitmq] section is missing")
+        else:
+            for field in _REQUIRED_RABBITMQ_FIELDS:
+                if not config.has_option("rabbitmq", field):
+                    errors.append(f"[rabbitmq] is missing required field: {field}")
+            if config.has_option("rabbitmq", "port"):
+                try:
+                    port = config.getint("rabbitmq", "port")
+                    if not 1 <= port <= 65535:
+                        errors.append(f"[rabbitmq] port must be 1-65535, got {port}")
+                except ValueError:
+                    errors.append("[rabbitmq] port must be a valid integer")
+
+    if "lora" in names and not config.has_section("lora"):
+        errors.append("[emit] lists 'lora' but the [lora] section is missing")
+
+    return errors
+
+
 def build_emitter(config: configparser.ConfigParser) -> DetectionEmitter:
     """Construct a DetectionEmitter from config.
 
@@ -364,8 +419,9 @@ def build_emitter(config: configparser.ConfigParser) -> DetectionEmitter:
     and the matching sink sections. Returns an emitter that is NOT yet started;
     call ``.start()`` (or use it as a context manager) to open connections.
     """
-    if not config.has_section("emit"):
-        raise ValueError("config is missing the required [emit] section")
+    errors = validate_config(config)
+    if errors:
+        raise ValueError("; ".join(errors))
 
     names = [n.strip().lower() for n in config.get("emit", "sinks", fallback="").split(",") if n.strip()]
     if not names:
@@ -390,7 +446,12 @@ def build_emitter(config: configparser.ConfigParser) -> DetectionEmitter:
         db_path = config.get("emit", "classify_db", fallback="") or None
         enricher = make_db_enricher(db_path)
 
-    return DetectionEmitter(sinks, enricher=enricher)
+    dedup = None
+    dedup_interval = config.getfloat("emit", "dedup_interval", fallback=0.0)
+    if dedup_interval > 0:
+        dedup = DetectionThrottle(interval=dedup_interval)
+
+    return DetectionEmitter(sinks, enricher=enricher, dedup=dedup)
 
 
 def make_db_enricher(db_path: str | None = None) -> Callable[[DetectionEvent], None]:
@@ -414,8 +475,6 @@ def make_db_enricher(db_path: str | None = None) -> Callable[[DetectionEvent], N
 
 
 def _build_rabbitmq_sink(config: configparser.ConfigParser, hostname: str, source: str) -> RabbitMQSink:
-    if not config.has_section("rabbitmq"):
-        raise ValueError("[emit] lists 'rabbitmq' but the [rabbitmq] section is missing")
     return RabbitMQSink(
         host=config.get("rabbitmq", "host"),
         port=config.getint("rabbitmq", "port"),
@@ -488,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         emitter = load_emitter(args.config)
     except (ValueError, FileNotFoundError) as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logger.error("Error: %s", e)
         return 1
 
     sample = DetectionEvent(
@@ -501,13 +560,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with emitter:
             emitter.emit(sample)
-            print(f"Emitted sample event to {len(emitter.sinks)} sink(s). Allowing time to flush...")
+            logger.info("Emitted sample event to %d sink(s). Allowing time to flush...", len(emitter.sinks))
             import time
 
             time.sleep(2)
         return 0
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logger.error("Error: %s", e)
         return 1
 
 

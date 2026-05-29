@@ -191,32 +191,31 @@ def test_invalid_freq_range_high_over_nyquist_raises(in_band_file, monkeypatch):
     # restore (pytest will undo monkeypatch at test end)
 
 
-def test_main_detects_in_band_prints_and_returns_zero(in_band_file, capsys):
+def test_main_detects_in_band_prints_and_returns_zero(in_band_file, caplog):
     argv = [in_band_file, "--low", "100", "--high", "700", "--threshold", "0.2"]
-    ret = audio_detection.main(argv)
-    captured = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        ret = audio_detection.main(argv)
     assert ret == 0
-    assert "Drone sound detected" in captured.out
+    assert "Drone sound detected" in caplog.text
 
 
-def test_main_no_detect_prints_and_returns_zero(out_band_file, capsys):
-    ret = audio_detection.main([out_band_file, "--low", "100", "--high", "700", "--threshold", "0.2"])
-    captured = capsys.readouterr()
+def test_main_no_detect_prints_and_returns_zero(out_band_file, caplog):
+    with caplog.at_level("INFO"):
+        ret = audio_detection.main([out_band_file, "--low", "100", "--high", "700", "--threshold", "0.2"])
     assert ret == 0
-    assert "No drone sound detected" in captured.out
+    assert "No drone sound detected" in caplog.text
 
 
-def test_main_error_nonexistent_file_returns_one(capsys, monkeypatch):
-    # Make sf.info throw an OSError to simulate missing file
+def test_main_error_nonexistent_file_returns_one(caplog, monkeypatch):
     def err(_):
         raise OSError("missing")
 
     monkeypatch.setattr(audio_detection.sf, "info", err)
 
-    ret = audio_detection.main(["/no/such/file.wav"])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = audio_detection.main(["/no/such/file.wav"])
     assert ret == 1
-    assert "Error processing audio:" in captured.err
+    assert "Error processing audio" in caplog.text
 
 
 def test_streaming_blocks_multiple_chunks(in_band_file):

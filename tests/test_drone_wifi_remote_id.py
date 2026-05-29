@@ -1,4 +1,5 @@
 import struct
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -161,3 +162,111 @@ def test_parse_operator_id_trims_null_padding():
     data = _make_operator_id_element(1, "SHORT")
     result = wifi.parse_remote_id_element(data)
     assert result["operator_id"] == "SHORT"
+
+
+# -------------------------------------------------------
+# _packet_rssi
+# -------------------------------------------------------
+
+
+def test_packet_rssi_returns_none_for_none():
+    assert wifi._packet_rssi(None) is None
+
+
+def test_packet_rssi_returns_none_without_radiotap():
+    pkt = MagicMock()
+    pkt.haslayer.return_value = False
+    assert wifi._packet_rssi(pkt) is None
+
+
+def test_packet_rssi_extracts_signal():
+    pkt = MagicMock()
+    pkt.haslayer.return_value = True
+    rt = MagicMock()
+    rt.dBm_AntSignal = -55
+    pkt.__getitem__ = MagicMock(return_value=rt)
+    assert wifi._packet_rssi(pkt) == -55
+
+
+# -------------------------------------------------------
+# _event_from_remote_id
+# -------------------------------------------------------
+
+
+def test_event_from_remote_id_with_full_fields():
+    fields = {
+        "uas_id": "DRONE-1",
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "altitude": 120.5,
+        "operator_id": "OP-1",
+    }
+    event = wifi._event_from_remote_id(fields, rssi=-72)
+    assert event is not None
+    assert event.detector == wifi.DetectorType.WIFI_REMOTE_ID
+    assert event.drone_id == "DRONE-1"
+    assert event.lat == pytest.approx(37.7749)
+    assert event.altitude == 120
+    assert event.operator_id == "OP-1"
+    assert event.rssi == -72
+
+
+def test_event_from_remote_id_location_only():
+    fields = {"latitude": 1.0, "longitude": 2.0}
+    event = wifi._event_from_remote_id(fields, rssi=None)
+    assert event is not None
+    assert event.drone_id is None
+    assert event.lat == 1.0
+
+
+def test_event_from_remote_id_none_without_content():
+    assert wifi._event_from_remote_id({"description": "hi"}, rssi=None) is None
+
+
+def test_event_from_remote_id_empty_uas_id():
+    assert wifi._event_from_remote_id({"uas_id": ""}, rssi=None) is None
+
+
+# -------------------------------------------------------
+# process_packet (mocked scapy layers)
+# -------------------------------------------------------
+
+
+def test_process_packet_ignores_non_beacon():
+    pkt = MagicMock()
+    pkt.haslayer.return_value = False
+    wifi.process_packet(pkt)  # should not raise
+
+
+def test_process_packet_emits_event_when_emitter_given():
+    from drone_tools.detection_emit import DetectionEmitter, DetectionSink
+
+    class _Recorder(DetectionSink):
+        def __init__(self):
+            self.events = []
+
+        def emit(self, event):
+            self.events.append(event)
+
+    recorder = _Recorder()
+    emitter = DetectionEmitter([recorder])
+
+    # Test the internal _event_from_remote_id -> emitter path directly
+    fields = {"uas_id": "WIFI-D1", "latitude": 37.7, "longitude": -122.4}
+    event = wifi._event_from_remote_id(fields, rssi=-55)
+    assert event is not None
+    emitter.emit(event)
+    assert len(recorder.events) == 1
+    assert recorder.events[0].drone_id == "WIFI-D1"
+
+
+# -------------------------------------------------------
+# main CLI
+# -------------------------------------------------------
+
+
+def test_main_no_scapy(monkeypatch):
+    monkeypatch.setattr(wifi, "SCAPY_AVAILABLE", False)
+    # capture_remote_id will raise RuntimeError
+    ret = wifi.main(["wlan0", "--timeout", "0.01"])
+    assert ret == 1

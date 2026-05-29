@@ -86,28 +86,28 @@ def test_detect_rtl_power_raises_on_errors(monkeypatch, exc):
 # ---------------------------
 
 
-def test_main_success_true(monkeypatch, capsys):
+def test_main_success_true(monkeypatch, caplog):
     monkeypatch.setattr(rtl, "detect_rtl_power", lambda *a, **k: True)
-    ret = rtl.main(["--range", "2400M:2483M:1M", "--threshold", "-30", "--integration", "1.0"])
-    out = capsys.readouterr().out
+    with caplog.at_level("INFO"):
+        ret = rtl.main(["--range", "2400M:2483M:1M", "--threshold", "-30", "--integration", "1.0"])
     assert ret == 0
-    assert "Potential drone RF signal detected" in out
+    assert "Potential drone RF signal detected" in caplog.text
 
 
-def test_main_success_false(monkeypatch, capsys):
+def test_main_success_false(monkeypatch, caplog):
     monkeypatch.setattr(rtl, "detect_rtl_power", lambda *a, **k: False)
-    ret = rtl.main(["--range", "2400M:2483M:1M"])
-    out = capsys.readouterr().out
+    with caplog.at_level("INFO"):
+        ret = rtl.main(["--range", "2400M:2483M:1M"])
     assert ret == 0
-    assert "No drone RF signal detected" in out
+    assert "No drone RF signal detected" in caplog.text
 
 
-def test_main_handles_exception(monkeypatch, capsys):
+def test_main_handles_exception(monkeypatch, caplog):
     def boom(*a, **k):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(rtl, "detect_rtl_power", boom)
-    ret = rtl.main(["--range", "2400M:2483M:1M"])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = rtl.main(["--range", "2400M:2483M:1M"])
     assert ret == 1
-    assert "Error during detection: boom" in captured.err
+    assert "Error during detection: boom" in caplog.text

@@ -7,10 +7,12 @@ attributes such as Remote ID support, RF frequencies, and audio signatures.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import json
 import sqlite3
 import sys
+from collections.abc import Generator
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -83,14 +85,22 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE drones ADD COLUMN {column} {decl}")
 
 
-def _connect(db_path: str | Path | None = None) -> sqlite3.Connection:
+@contextlib.contextmanager
+def _connect(db_path: str | Path | None = None) -> Generator[sqlite3.Connection, None, None]:
     path = _resolve(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     _migrate(conn)
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:

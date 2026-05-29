@@ -154,7 +154,7 @@ def detect_drone_without_remote_id(
         for f in freqs:
             power = _measure_power(device, f, sample_rate, duration, settle_time=settle_time)
             if power > threshold_dbfs and rid_power < threshold_dbfs:
-                print(f"Possible drone signal at {f / 1e6:.1f} MHz without remote ID (power {power:.1f} dBFS)")
+                logging.info("Possible drone signal at %.1f MHz without remote ID (power %.1f dBFS)", f / 1e6, power)
                 return True
     return False
 
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logging.error("could not set up emitter: %s", exc)
         return 1
 
     try:
@@ -245,15 +245,15 @@ def main(argv: list[str] | None = None) -> int:
                 settle_time=args.settle_time,
             )
         except Exception as exc:  # Depends on hardware
-            print(f"Error during detection: {exc}", file=sys.stderr)
+            logging.error("Error during detection: %s", exc)
             return 1
 
         if found:
-            print("Drone without remote ID detected")
+            logging.info("Drone without remote ID detected")
             if emitter is not None:
                 emitter.emit(DetectionEvent(detector=DetectorType.RF))
         else:
-            print("No drone without remote ID detected")
+            logging.info("No drone without remote ID detected")
         return 0
     finally:
         if emitter is not None:

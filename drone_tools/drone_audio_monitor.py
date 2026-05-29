@@ -9,13 +9,15 @@ real time. Detection is based on a simple frequency energy ratio, similar to
 from __future__ import annotations
 
 import argparse
-import sys
+import logging
 import time
 
 import numpy as np
 
 from drone_tools.detection_emit import DetectionEmitter, add_emit_args, open_emitter
 from drone_tools.drone_lora import DetectionEvent, DetectorType
+
+logger = logging.getLogger(__name__)
 
 try:
     import sounddevice as sd
@@ -106,7 +108,7 @@ def monitor_audio(
     def callback(indata, frames, time_info, status):  # noqa: ANN001 - sounddevice signature
         nonlocal last_print_ts
         if status:
-            print(status, file=sys.stderr)
+            logger.warning("audio stream status: %s", status)
 
         if _detect_drone_block(
             indata,  # pass full frame; function uses first channel view without copying
@@ -117,7 +119,7 @@ def monitor_audio(
         ):
             now = time.time()
             if (now - last_print_ts) >= min_interval:
-                print("Drone sound detected", flush=True)
+                logger.info("Drone sound detected")
                 last_print_ts = now
                 if emitter is not None:
                     emitter.emit(DetectionEvent(detector=DetectorType.AUDIO))
@@ -133,15 +135,17 @@ def monitor_audio(
         stream_kwargs["latency"] = latency  # type: ignore[assignment]
 
     with sd.InputStream(**stream_kwargs):
-        print(
-            f"Listening for drone sounds (sr={samplerate} Hz, blocksize={blocksize}, "
-            f"channels={channels})... Press Ctrl+C to stop."
+        logger.info(
+            "Listening for drone sounds (sr=%d Hz, blocksize=%d, channels=%d). Press Ctrl+C to stop.",
+            samplerate,
+            blocksize,
+            channels,
         )
         try:
             while True:
                 sd.sleep(1000)
         except KeyboardInterrupt:
-            print("Stopping.")
+            logger.info("Stopping.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -188,9 +192,11 @@ def main(argv: list[str] | None = None) -> int:
     add_emit_args(parser)
     args = parser.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     if args.list_devices:
         if sd is None:
-            print("Error: sounddevice is not installed. Install with: pip install sounddevice", file=sys.stderr)
+            logger.error("sounddevice is not installed. Install with: pip install sounddevice")
             return 1
         print(sd.query_devices())
         return 0
@@ -198,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logger.error("could not set up emitter: %s", exc)
         return 1
 
     freq_range = (args.low, args.high)

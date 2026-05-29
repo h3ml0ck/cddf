@@ -100,15 +100,16 @@ def test_parse_ble_service_data_too_short_for_known_type_falls_back_to_raw():
 # -------------------------------------------------------
 
 
-def test_callback_ignores_non_remote_id_service_uuid(capsys):
+def test_callback_ignores_non_remote_id_service_uuid(caplog):
     cb = ble._make_callback(verbose=False)
     device = MagicMock(address="AA:BB:CC:DD:EE:FF")
     adv = MagicMock(rssi=-60, service_data={"0000beef-0000-1000-8000-00805f9b34fb": b"\x00\x00"})
-    cb(device, adv)
-    assert capsys.readouterr().out == ""
+    with caplog.at_level("INFO"):
+        cb(device, adv)
+    assert "Remote ID" not in caplog.text
 
 
-def test_callback_prints_parsed_remote_id(capsys):
+def test_callback_prints_parsed_remote_id(caplog):
     uas_id = "DRONE-XYZ"
     id_bytes = uas_id.encode("utf-8").ljust(20, b"\x00")
     payload = bytes([0x00, 4, 1]) + id_bytes  # Basic ID
@@ -116,31 +117,33 @@ def test_callback_prints_parsed_remote_id(capsys):
     cb = ble._make_callback(verbose=False)
     device = MagicMock(address="AA:BB:CC:DD:EE:FF")
     adv = MagicMock(rssi=-42, service_data={ble.REMOTE_ID_SERVICE_UUID: payload})
-    cb(device, adv)
+    with caplog.at_level("INFO"):
+        cb(device, adv)
 
-    out = capsys.readouterr().out
-    assert "AA:BB:CC:DD:EE:FF" in out
-    assert "-42 dBm" in out
-    assert "Basic ID" in out
-    assert uas_id in out
+    assert "AA:BB:CC:DD:EE:FF" in caplog.text
+    assert "-42 dBm" in caplog.text
+    assert "Basic ID" in caplog.text
+    assert uas_id in caplog.text
 
 
-def test_callback_verbose_prints_raw_hex(capsys):
-    payload = bytes([0x0A]) + b"\xab\xcd"  # unknown type -> raw_data present, but raw_hex is the adv bytes
+def test_callback_verbose_prints_raw_hex(caplog):
+    payload = bytes([0x0A]) + b"\xab\xcd"
     cb = ble._make_callback(verbose=True)
     device = MagicMock(address="11:22:33:44:55:66")
     adv = MagicMock(rssi=-70, service_data={ble.REMOTE_ID_SERVICE_UUID: payload})
-    cb(device, adv)
-    assert "raw_hex: 0aabcd" in capsys.readouterr().out
+    with caplog.at_level("DEBUG"):
+        cb(device, adv)
+    assert "raw_hex: 0aabcd" in caplog.text
 
 
-def test_callback_accepts_uppercase_uuid(capsys):
+def test_callback_accepts_uppercase_uuid(caplog):
     payload = bytes([0x03, 0]) + b"hello"
     cb = ble._make_callback(verbose=False)
     device = MagicMock(address="AA:BB:CC:DD:EE:FF")
     adv = MagicMock(rssi=-55, service_data={ble.REMOTE_ID_SERVICE_UUID.upper(): payload})
-    cb(device, adv)
-    assert "Self ID" in capsys.readouterr().out
+    with caplog.at_level("INFO"):
+        cb(device, adv)
+    assert "Self ID" in caplog.text
 
 
 # -------------------------------------------------------
@@ -172,24 +175,26 @@ def _fake_asyncio_run(behavior):
     return runner
 
 
-def test_main_handles_keyboard_interrupt(monkeypatch, capsys):
+def test_main_handles_keyboard_interrupt(monkeypatch, caplog):
     def raise_kbi():
         raise KeyboardInterrupt
 
     monkeypatch.setattr(ble.asyncio, "run", _fake_asyncio_run(raise_kbi))
-    rc = ble.main(["--timeout", "0.01"])
+    with caplog.at_level("INFO"):
+        rc = ble.main(["--timeout", "0.01"])
     assert rc == 0
-    assert "Capture stopped" in capsys.readouterr().out
+    assert "Capture stopped" in caplog.text
 
 
-def test_main_returns_one_on_exception(monkeypatch, capsys):
+def test_main_returns_one_on_exception(monkeypatch, caplog):
     def raise_exc():
         raise RuntimeError("boom")
 
     monkeypatch.setattr(ble.asyncio, "run", _fake_asyncio_run(raise_exc))
-    rc = ble.main([])
+    with caplog.at_level("ERROR"):
+        rc = ble.main([])
     assert rc == 1
-    assert "boom" in capsys.readouterr().err
+    assert "boom" in caplog.text
 
 
 def test_main_returns_zero_on_clean_exit(monkeypatch):

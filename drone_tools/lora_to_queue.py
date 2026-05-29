@@ -218,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         asyncio.run(bridge.run())
         return 0
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        logging.info("Shutting down...")
         return 0
 
 

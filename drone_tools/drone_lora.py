@@ -27,12 +27,14 @@ CLI: monitor incoming detections, or send a test event to verify the link.
 from __future__ import annotations
 
 import argparse
+import logging
 import struct
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
+
+logger = logging.getLogger(__name__)
 
 try:
     import meshtastic
@@ -330,7 +332,7 @@ class MeshLink:
 
     @staticmethod
     def _default_on_error(context: str, exc: Exception) -> None:
-        print(f"[lora] {context}: {exc}", file=sys.stderr)
+        logger.error("[lora] %s: %s", context, exc)
 
     def connect(self) -> MeshLink:
         if not MESHTASTIC_AVAILABLE:
@@ -451,18 +453,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     if not MESHTASTIC_AVAILABLE:
-        print(
-            'Error: meshtastic is not installed. Install with: pip install -e ".[lora]"',
-            file=sys.stderr,
-        )
+        logger.error('meshtastic is not installed. Install with: pip install -e ".[lora]"')
         return 1
 
     try:
         with MeshLink(
             device=args.device,
             host=args.host,
-            on_event=lambda r: print(_format_received(r)),
+            on_event=lambda r: logger.info("%s", _format_received(r)),
         ) as link:
             if args.send_test:
                 sample = DetectionEvent(
@@ -474,19 +475,18 @@ def main(argv: list[str] | None = None) -> int:
                     drone_id="TEST-1581F4F2C8A1",
                 )
                 link.broadcast(sample)
-                print(f"Broadcast test event ({len(encode_event(sample))} bytes).")
-                # Give the radio a moment to actually transmit before closing.
+                logger.info("Broadcast test event (%d bytes).", len(encode_event(sample)))
                 time.sleep(2)
                 return 0
 
-            print("Listening for drone detection events over LoRa. Press Ctrl+C to stop.\n")
+            logger.info("Listening for drone detection events over LoRa. Press Ctrl+C to stop.")
             while True:
                 time.sleep(1)
     except KeyboardInterrupt:
-        print("\nStopped.")
+        logger.info("Stopped.")
         return 0
     except Exception as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        logger.error("Error: %s", exc)
         return 1
 
 

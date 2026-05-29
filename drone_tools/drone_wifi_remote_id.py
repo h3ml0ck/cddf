@@ -9,6 +9,7 @@ standard WiFi beacons.
 from __future__ import annotations
 
 import argparse
+import logging
 import struct
 import sys
 import time
@@ -22,6 +23,8 @@ except ImportError:
 
 from drone_tools.detection_emit import DetectionEmitter, add_emit_args, open_emitter
 from drone_tools.drone_lora import DetectionEvent, DetectorType
+
+logger = logging.getLogger(__name__)
 
 # ASTM F3411 Remote ID message types
 REMOTE_ID_MESSAGE_TYPES = {
@@ -223,14 +226,12 @@ def process_packet(packet, emitter: DetectionEmitter | None = None) -> None:
         if element.ID == 221:  # Vendor Specific
             remote_id_data = parse_remote_id_element(bytes(element.info))
             if remote_id_data:
-                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                print(f"\n[{timestamp}] Remote ID detected from {bssid}")
-                print(f"Message Type: {remote_id_data['message_type']}")
-
-                # Print specific data based on message type
-                for key, value in remote_id_data.items():
-                    if key not in ["message_type", "raw_type", "data_length"]:
-                        print(f"  {key}: {value}")
+                details = " ".join(
+                    f"{k}={v}"
+                    for k, v in remote_id_data.items()
+                    if k not in ("message_type", "raw_type", "data_length")
+                )
+                logger.info("Remote ID from %s: %s %s", bssid, remote_id_data["message_type"], details)
 
                 combined.update(remote_id_data)
 
@@ -259,9 +260,8 @@ def capture_remote_id(
     if not SCAPY_AVAILABLE:
         raise RuntimeError("scapy is required but not installed. Install with: pip install scapy")
 
-    print(f"Starting Remote ID capture on interface {interface}")
-    print("Listening for drone Remote ID WiFi beacons...")
-    print("Press Ctrl+C to stop\n")
+    logger.info("Starting Remote ID capture on interface %s", interface)
+    logger.info("Listening for drone Remote ID WiFi beacons. Press Ctrl+C to stop.")
 
     def handle_packet(packet):
         process_packet(packet, emitter)
@@ -279,16 +279,16 @@ def capture_remote_id(
                     iface=interface, prn=handle_packet, filter="type mgt subtype beacon", timeout=timeout, store=False
                 )
             except Exception as filter_exc:
-                print(f"BPF filter failed ({filter_exc}), trying without filter...")
+                logger.warning("BPF filter failed (%s), trying without filter...", filter_exc)
                 # Fallback to no filter with manual filtering
                 sniff(iface=interface, prn=filtered_process_packet, timeout=timeout, store=False)
         else:
             # Manual filtering approach
             sniff(iface=interface, prn=filtered_process_packet, timeout=timeout, store=False)
     except KeyboardInterrupt:
-        print("\nCapture stopped by user")
+        logger.info("Capture stopped by user")
     except Exception as exc:
-        print(f"Capture failed: {exc}", file=sys.stderr)
+        logger.error("Capture failed: %s", exc)
         raise
 
 
@@ -303,26 +303,28 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     if not args.monitor_mode:
-        print("Note: This script works best with a WiFi interface in monitor mode.")
-        print("You may need to configure monitor mode manually:")
-        print(f"  sudo iwconfig {args.interface} mode monitor")
-        print(f"  sudo ifconfig {args.interface} up")
-        print()
-        print("If you get filter errors, try running with --no-filter")
-        print()
+        logger.info(
+            "This script works best with a WiFi interface in monitor mode. "
+            "Configure with: sudo iwconfig %s mode monitor && sudo ifconfig %s up. "
+            "If you get filter errors, try --no-filter.",
+            args.interface,
+            args.interface,
+        )
 
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logger.error("could not set up emitter: %s", exc)
         return 1
 
     try:
         capture_remote_id(args.interface, args.timeout, use_filter=not args.no_filter, emitter=emitter)
         return 0
     except Exception as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        logger.error("Error: %s", exc)
         return 1
     finally:
         if emitter is not None:
