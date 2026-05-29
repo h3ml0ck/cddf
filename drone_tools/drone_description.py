@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -11,6 +12,8 @@ import openai
 
 from drone_tools.detection_emit import add_emit_args, open_emitter
 from drone_tools.drone_lora import DetectionEvent, DetectorType
+
+logger = logging.getLogger(__name__)
 
 # Named explicitly so an OpenAI default change can't silently swap the model.
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -141,13 +144,12 @@ def main(argv=None):
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logger.error("could not set up emitter: %s", exc)
         return 1
 
     try:
         _validate_image_path(args.image_path)
         if emitter is not None:
-            # Structured path: classify, print a summary, and emit a VISION event.
             result = classify_drone(args.image_path, model=args.model)
             print(json.dumps({k: result[k] for k in ("manufacturer", "model", "drone_type", "confidence")}))
             emitter.emit(
@@ -161,7 +163,7 @@ def main(argv=None):
             description = describe_drone(args.image_path, model=args.model, max_tokens=args.max_tokens)
             print(description)
     except Exception as exc:
-        print(f"Error describing drone: {exc}", file=sys.stderr)
+        logger.error("Error describing drone: %s", exc)
         return 1
     finally:
         if emitter is not None:

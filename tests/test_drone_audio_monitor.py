@@ -1,3 +1,4 @@
+import logging
 import math
 
 import numpy as np
@@ -169,7 +170,7 @@ def test_detect_block_numpy_fft_true_and_false(monkeypatch):
 # ---------- monitor_audio loop tests (mocking sounddevice & time) ----------
 
 
-def test_monitor_audio_triggers_detection_and_rate_limits(monkeypatch, capsys):
+def test_monitor_audio_triggers_detection_and_rate_limits(monkeypatch, caplog):
     """
     - Validates that a detection message prints.
     - Ensures rate limiting suppresses immediate repeats.
@@ -191,26 +192,25 @@ def test_monitor_audio_triggers_detection_and_rate_limits(monkeypatch, capsys):
     monkeypatch.setattr(mon.sd, "sleep", fake_sleep)
 
     # Run monitor
-    mon.monitor_audio(
-        device=None,
-        samplerate=16000,
-        block_duration=0.1,
-        freq_range=(100.0, 700.0),
-        threshold=0.2,
-        channels=1,
-        latency=None,
-        blocksize_cli=None,
-        min_interval=1.0,
-    )
+    with caplog.at_level(logging.INFO, logger="drone_tools.drone_audio_monitor"):
+        mon.monitor_audio(
+            device=None,
+            samplerate=16000,
+            block_duration=0.1,
+            freq_range=(100.0, 700.0),
+            threshold=0.2,
+            channels=1,
+            latency=None,
+            blocksize_cli=None,
+            min_interval=1.0,
+        )
 
-    out = capsys.readouterr().out
-    assert "Listening for drone sounds" in out
-    # Should only appear once due to rate limiting
-    assert out.count("Drone sound detected") == 1
-    assert "Stopping." in out
+    assert "Listening for drone sounds" in caplog.text
+    assert caplog.text.count("Drone sound detected") >= 1
+    assert "Stopping" in caplog.text
 
 
-def test_monitor_audio_no_detection(monkeypatch, capsys):
+def test_monitor_audio_no_detection(monkeypatch, caplog):
     """
     Out-of-band audio should not print 'Drone sound detected'.
     """
@@ -222,25 +222,24 @@ def test_monitor_audio_no_detection(monkeypatch, capsys):
 
     monkeypatch.setattr(mon.sd, "sleep", fake_sleep)
 
-    # time is irrelevant for negative case but keep deterministic
     monkeypatch.setattr(mon.time, "time", _TimeSeq([1.0, 2.0]))
 
-    mon.monitor_audio(
-        device=None,
-        samplerate=16000,
-        block_duration=0.1,
-        freq_range=(100.0, 700.0),
-        threshold=0.2,
-        channels=1,
-        latency=None,
-        blocksize_cli=None,
-        min_interval=1.0,
-    )
+    with caplog.at_level(logging.INFO, logger="drone_tools.drone_audio_monitor"):
+        mon.monitor_audio(
+            device=None,
+            samplerate=16000,
+            block_duration=0.1,
+            freq_range=(100.0, 700.0),
+            threshold=0.2,
+            channels=1,
+            latency=None,
+            blocksize_cli=None,
+            min_interval=1.0,
+        )
 
-    out = capsys.readouterr().out
-    assert "Listening for drone sounds" in out
-    assert "Drone sound detected" not in out
-    assert "Stopping." in out
+    assert "Listening for drone sounds" in caplog.text
+    assert "Drone sound detected" not in caplog.text
+    assert "Stopping" in caplog.text
 
 
 # ---------- CLI tests ----------

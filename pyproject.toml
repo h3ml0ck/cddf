@@ -75,7 +75,7 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
-check_untyped_defs = false
+check_untyped_defs = true
 exclude = ["build/", "dist/", "kismet-queuer/"]
 
 [[tool.mypy.overrides]]

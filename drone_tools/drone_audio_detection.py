@@ -1,6 +1,7 @@
 """Utility to detect drone sounds in audio files."""
 
 import argparse
+import logging
 import sys
 
 import numpy as np
@@ -8,6 +9,8 @@ import soundfile as sf
 
 from drone_tools.detection_emit import add_emit_args, open_emitter
 from drone_tools.drone_lora import DetectionEvent, DetectorType
+
+logger = logging.getLogger(__name__)
 
 
 def detect_drone_sound(
@@ -122,25 +125,27 @@ def main(argv=None) -> int:
     add_emit_args(parser)
     args = parser.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logger.error("could not set up emitter: %s", exc)
         return 1
 
     try:
         try:
             detected = detect_drone_sound(args.audio_path, (args.low, args.high), args.threshold)
         except Exception as exc:
-            print(f"Error processing audio: {exc}", file=sys.stderr)
+            logger.error("Error processing audio: %s", exc)
             return 1
 
         if detected:
-            print("Drone sound detected")
+            logger.info("Drone sound detected")
             if emitter is not None:
                 emitter.emit(DetectionEvent(detector=DetectorType.AUDIO))
         else:
-            print("No drone sound detected")
+            logger.info("No drone sound detected")
         return 0
     finally:
         if emitter is not None:

@@ -146,43 +146,39 @@ def test_measure_power_uses_settle_and_returns_dbfs(monkeypatch):
 # ---------------------------
 
 
-def test_detect_returns_true_when_power_high_and_no_rid(monkeypatch, capsys):
-    # rid power will be very low (mock returns zeros on rid freq)
+def test_detect_returns_true_when_power_high_and_no_rid(monkeypatch, caplog):
     rid_freqs = [2.433e9]
     scan_freqs = [2.4e9, 5.8e9]
 
-    # HackRf context should be our mock with rid_set
     monkeypatch.setattr(rf, "HackRf", lambda: MockHackRf(rid_set=rid_freqs))
 
-    found = rf.detect_drone_without_remote_id(
-        freqs=scan_freqs,
-        remote_id_freqs=rid_freqs,
-        threshold_dbfs=-40.0,
-        sample_rate=2e6,
-        duration=0.002,
-        settle_time=0.0,  # speed up
-    )
-    out = capsys.readouterr().out
+    with caplog.at_level("INFO"):
+        found = rf.detect_drone_without_remote_id(
+            freqs=scan_freqs,
+            remote_id_freqs=rid_freqs,
+            threshold_dbfs=-40.0,
+            sample_rate=2e6,
+            duration=0.002,
+            settle_time=0.0,
+        )
     assert found is True
-    assert "Possible drone signal at" in out
+    assert "Possible drone signal at" in caplog.text
 
 
-def test_detect_returns_false_when_below_threshold(monkeypatch, capsys):
-    # Make "high power" become low: monkeypatch _measure_power to return -100 dBFS everywhere
+def test_detect_returns_false_when_below_threshold(monkeypatch, caplog):
     monkeypatch.setattr(rf, "_measure_power", lambda *a, **k: -100.0)
-    # Provide a dummy HackRf so context opens
     monkeypatch.setattr(rf, "HackRf", lambda: MockHackRf(rid_set=[2.433e9]))
 
-    found = rf.detect_drone_without_remote_id(
-        freqs=[2.4e9],
-        remote_id_freqs=[2.433e9],
-        threshold_dbfs=-40.0,
-        sample_rate=2e6,
-        duration=0.001,
-    )
-    out = capsys.readouterr().out
+    with caplog.at_level("INFO"):
+        found = rf.detect_drone_without_remote_id(
+            freqs=[2.4e9],
+            remote_id_freqs=[2.433e9],
+            threshold_dbfs=-40.0,
+            sample_rate=2e6,
+            duration=0.001,
+        )
     assert found is False
-    assert "Possible drone signal" not in out
+    assert "Possible drone signal" not in caplog.text
 
 
 def test_detect_validation_errors_when_no_lib_or_bad_inputs(monkeypatch):
@@ -233,48 +229,47 @@ def test_main_list_devices_success(monkeypatch, capsys):
     assert "HackRF device opened successfully" in captured.out
 
 
-def test_main_detection_success_true(monkeypatch, capsys):
-    # Use real function but with mock HackRf that produces detection True
+def test_main_detection_success_true(monkeypatch, caplog):
     rid = [2.433e9]
     monkeypatch.setattr(rf, "HackRf", lambda: MockHackRf(rid_set=rid))
 
-    ret = rf.main(
-        [
-            "--freq",
-            "2.4G",
-            "--remote-id-freq",
-            "2.433G",
-            "--threshold",
-            "-40",
-            "--sample-rate",
-            "2M",
-            "--duration",
-            "0.001",
-            "--settle-time",
-            "0",
-            "-q",
-        ]
-    )
-    captured = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        ret = rf.main(
+            [
+                "--freq",
+                "2.4G",
+                "--remote-id-freq",
+                "2.433G",
+                "--threshold",
+                "-40",
+                "--sample-rate",
+                "2M",
+                "--duration",
+                "0.001",
+                "--settle-time",
+                "0",
+                "-q",
+            ]
+        )
     assert ret == 0
-    assert "Drone without remote ID detected" in captured.out
+    assert "Drone without remote ID detected" in caplog.text
 
 
-def test_main_detection_success_false(monkeypatch, capsys):
-    # Force detect to return False
+def test_main_detection_success_false(monkeypatch, caplog):
     monkeypatch.setattr(rf, "HackRf", lambda: MockHackRf(rid_set=[2.433e9]))
     monkeypatch.setattr(rf, "_measure_power", lambda *a, **k: -100.0)
 
-    ret = rf.main(["--freq", "2.4G", "--remote-id-freq", "2.433G", "--sample-rate", "2M", "--duration", "0.001", "-q"])
-    captured = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        ret = rf.main(
+            ["--freq", "2.4G", "--remote-id-freq", "2.433G", "--sample-rate", "2M", "--duration", "0.001", "-q"]
+        )
     assert ret == 0
-    assert "No drone without remote ID detected" in captured.out
+    assert "No drone without remote ID detected" in caplog.text
 
 
-def test_main_detection_handles_exception(monkeypatch, capsys):
-    # Make detect raise
+def test_main_detection_handles_exception(monkeypatch, caplog):
     monkeypatch.setattr(rf, "detect_drone_without_remote_id", lambda **k: (_ for _ in ()).throw(RuntimeError("boom")))
-    ret = rf.main(["--freq", "2.4G", "--remote-id-freq", "2.433G"])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = rf.main(["--freq", "2.4G", "--remote-id-freq", "2.433G"])
     assert ret == 1
-    assert "Error during detection: boom" in captured.err
+    assert "Error during detection: boom" in caplog.text

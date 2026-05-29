@@ -17,6 +17,11 @@ hostname =
 # Tag applied to messages this node publishes directly (the gateway uses "lora").
 source = local
 
+# Optional. Suppress duplicate detections of the same drone within this many
+# seconds. Useful when multiple sinks or overlapping sensors report the same
+# drone. 0 disables dedup (default).
+dedup_interval = 0
+
 # Optional. Enrich detections with manufacturer/model from the reference DB
 # (drone-db) by matching the Remote ID serial. Off by default.
 classify = false

@@ -171,7 +171,7 @@ def test_main_success_prints_description_and_returns_0(tmp_path, capsys, monkeyp
     assert "Hexacopter" in captured.out
 
 
-def test_main_handles_exception_and_returns_1(tmp_path, capsys, monkeypatch):
+def test_main_handles_exception_and_returns_1(tmp_path, caplog, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     img = tmp_path / "bad.jpg"
     img.write_bytes(b"xxx")
@@ -186,10 +186,10 @@ def test_main_handles_exception_and_returns_1(tmp_path, capsys, monkeypatch):
 
     monkeypatch.setattr(desc.openai, "OpenAI", _factory)
 
-    ret = desc.main([str(img)])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = desc.main([str(img)])
     assert ret == 1
-    assert "Error describing drone: nope" in captured.err
+    assert "nope" in caplog.text
 
 
 # --- structured classification --------------------------------------------

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import subprocess
 import sys
 
 from drone_tools.detection_emit import add_emit_args, open_emitter
 from drone_tools.drone_lora import DetectionEvent, DetectorType
+
+logger = logging.getLogger(__name__)
 
 # Strict whitelist pattern for rtl_power frequency range argument.
 # Accepts formats like "2400M:2483M:1M" or "2.4G:2.5G:100k".
@@ -99,24 +102,26 @@ def main(argv: list[str] | None = None) -> int:
     add_emit_args(parser)
     args = parser.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     try:
         emitter = open_emitter(args)
     except Exception as exc:
-        print(f"Error: could not set up emitter: {exc}", file=sys.stderr)
+        logger.error("could not set up emitter: %s", exc)
         return 1
 
     try:
         try:
             found = detect_rtl_power(args.range, args.threshold, args.integration)
         except Exception as exc:  # pragma: no cover - depends on external tool
-            print(f"Error during detection: {exc}", file=sys.stderr)
+            logger.error("Error during detection: %s", exc)
             return 1
         if found:
-            print("Potential drone RF signal detected")
+            logger.info("Potential drone RF signal detected")
             if emitter is not None:
                 emitter.emit(DetectionEvent(detector=DetectorType.RTL_POWER))
         else:
-            print("No drone RF signal detected")
+            logger.info("No drone RF signal detected")
         return 0
     finally:
         if emitter is not None:

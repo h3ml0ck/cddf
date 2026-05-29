@@ -19,8 +19,9 @@ from drone_tools.detection_emit import (
     format_detection_message,
     make_db_enricher,
     routing_key,
+    validate_config,
 )
-from drone_tools.drone_lora import DetectionEvent, DetectorType
+from drone_tools.drone_lora import DetectionEvent, DetectionThrottle, DetectorType
 
 
 class _RecordingSink(DetectionSink):
@@ -231,3 +232,99 @@ def test_build_emitter_wires_classify(seeded_db):
 def test_build_emitter_no_classify_has_no_enricher():
     emitter = build_emitter(_config("[emit]\nsinks = stdout\n"))
     assert emitter.enricher is None
+
+
+# --- validate_config -------------------------------------------------------
+
+
+def test_validate_config_valid_stdout():
+    assert validate_config(_config("[emit]\nsinks = stdout\n")) == []
+
+
+def test_validate_config_missing_emit_section():
+    errors = validate_config(_config("[rabbitmq]\nhost = x\n"))
+    assert any("emit" in e for e in errors)
+
+
+def test_validate_config_empty_sinks():
+    errors = validate_config(_config("[emit]\nsinks =\n"))
+    assert any("empty" in e for e in errors)
+
+
+def test_validate_config_unknown_sink():
+    errors = validate_config(_config("[emit]\nsinks = carrier_pigeon\n"))
+    assert any("unknown" in e for e in errors)
+
+
+def test_validate_config_rabbitmq_missing_section():
+    errors = validate_config(_config("[emit]\nsinks = rabbitmq\n"))
+    assert any("rabbitmq" in e.lower() for e in errors)
+
+
+def test_validate_config_rabbitmq_missing_fields():
+    errors = validate_config(_config("[emit]\nsinks = rabbitmq\n[rabbitmq]\nhost = x\n"))
+    assert any("port" in e for e in errors)
+
+
+def test_validate_config_rabbitmq_bad_port():
+    cfg = "[emit]\nsinks = rabbitmq\n[rabbitmq]\nhost = x\nport = abc\nusername = u\npassword = p\nexchange = ex\n"
+    errors = validate_config(_config(cfg))
+    assert any("integer" in e for e in errors)
+
+
+def test_validate_config_rabbitmq_port_out_of_range():
+    cfg = "[emit]\nsinks = rabbitmq\n[rabbitmq]\nhost = x\nport = 99999\nusername = u\npassword = p\nexchange = ex\n"
+    errors = validate_config(_config(cfg))
+    assert any("65535" in e for e in errors)
+
+
+def test_validate_config_lora_missing_section():
+    errors = validate_config(_config("[emit]\nsinks = lora\n"))
+    assert any("lora" in e.lower() for e in errors)
+
+
+def test_validate_config_valid_rabbitmq():
+    cfg = "[emit]\nsinks = rabbitmq\n[rabbitmq]\nhost = x\nport = 5672\nusername = u\npassword = p\nexchange = ex\n"
+    assert validate_config(_config(cfg)) == []
+
+
+# --- deduplication ---------------------------------------------------------
+
+
+def test_emitter_dedup_suppresses_repeat():
+    sink = _RecordingSink()
+    dedup = DetectionThrottle(interval=60.0)
+    emitter = DetectionEmitter([sink], dedup=dedup)
+    event = DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="D1")
+    emitter.emit(event)
+    emitter.emit(event)  # same drone_id, should be suppressed
+    assert len(sink.events) == 1
+
+
+def test_emitter_dedup_allows_different_drones():
+    sink = _RecordingSink()
+    dedup = DetectionThrottle(interval=60.0)
+    emitter = DetectionEmitter([sink], dedup=dedup)
+    emitter.emit(DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="D1"))
+    emitter.emit(DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=2, drone_id="D2"))
+    assert len(sink.events) == 2
+
+
+def test_emitter_no_dedup_allows_all():
+    sink = _RecordingSink()
+    emitter = DetectionEmitter([sink])
+    event = DetectionEvent(detector=DetectorType.WIFI_REMOTE_ID, timestamp=1, drone_id="D1")
+    emitter.emit(event)
+    emitter.emit(event)
+    assert len(sink.events) == 2
+
+
+def test_build_emitter_wires_dedup():
+    emitter = build_emitter(_config("[emit]\nsinks = stdout\ndedup_interval = 30\n"))
+    assert emitter.dedup is not None
+    assert emitter.dedup.interval == 30.0
+
+
+def test_build_emitter_no_dedup_by_default():
+    emitter = build_emitter(_config("[emit]\nsinks = stdout\n"))
+    assert emitter.dedup is None
