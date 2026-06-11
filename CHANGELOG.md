@@ -6,7 +6,7 @@
 - Detection enrichment: detectors can attach manufacturer/model from the reference DB before publishing, enabled per node via `[emit] classify`/`classify_db`. `DetectionEvent` gained local-only `manufacturer`/`model` fields (not put on the LoRa wire).
 - Vision tools: `drone-describe-image` adds `--model`, `--max-tokens`, structured `classify_drone()`, and `--emit-config` to publish a `VISION` detection; `drone-image-query` adds `--model`/`--size`/`--n` with an explicit default model. New `VISION` detector type.
 - Coverage floor enforced in CI (`pytest --cov-fail-under=65`).
-- CI workflow (`.github/workflows/ci.yml`) running ruff, ruff format check, mypy, and pytest on Python 3.10–3.12.
+- CI workflow (`.github/workflows/ci.yml`) running ruff, ruff format check, mypy, and pytest on Python 3.10–3.14.
 - Tool configuration in `pyproject.toml`: `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`.
 - Unit tests for `drone_ble_remote_id` (16 tests) and `mock_sniffle_remote_id` (17 tests).
 - `ansible/inventory.ini.example` template; real `inventory.ini` is now gitignored.
