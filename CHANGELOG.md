@@ -5,7 +5,8 @@
 - Drone reference DB: `drone-db seed` (bundled `known_drones.json` catalog), `drone-db import` (JSON/CSV), and `drone-db identify` to match a Remote ID serial to a catalog entry. New `classify()` API plus a `manufacturer_code` (CTA-2063-A) column with automatic migration of existing databases.
 - Detection enrichment: detectors can attach manufacturer/model from the reference DB before publishing, enabled per node via `[emit] classify`/`classify_db`. `DetectionEvent` gained local-only `manufacturer`/`model` fields (not put on the LoRa wire).
 - Vision tools: `drone-describe-image` adds `--model`, `--max-tokens`, structured `classify_drone()`, and `--emit-config` to publish a `VISION` detection; `drone-image-query` adds `--model`/`--size`/`--n` with an explicit default model. New `VISION` detector type.
-- Coverage floor enforced in CI (`pytest --cov-fail-under=65`).
+- Coverage floor enforced in CI (`pytest --cov-fail-under=80`).
+- Sink-layer and radio-layer tests: `RabbitMQSink` lifecycle, `LoRaSink`, `MeshLink` connect/broadcast/receive, and both `drone-emit-test` and `drone-lora-relay` CLIs (`detection_emit` 57%→97%, `drone_lora` 61%→96% coverage).
 - CI workflow (`.github/workflows/ci.yml`) running ruff, ruff format check, mypy, and pytest on Python 3.10–3.14.
 - Tool configuration in `pyproject.toml`: `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`.
 - Unit tests for `drone_ble_remote_id` (16 tests) and `mock_sniffle_remote_id` (17 tests).

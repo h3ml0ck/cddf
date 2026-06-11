@@ -43,7 +43,7 @@ jobs:
         run: mypy drone_tools
 
       - name: Pytest
-        run: pytest --cov=drone_tools --cov-report=term-missing --cov-fail-under=65
+        run: pytest --cov=drone_tools --cov-report=term-missing --cov-fail-under=80
 
       - name: Install kismet-queuer dependencies
         run: pip install -r kismet-queuer/src/requirements.txt
