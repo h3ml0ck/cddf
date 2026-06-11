@@ -1,12 +1,17 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-06-11
 ### Added
+- LoRa mesh relay (`drone_tools/drone_lora.py`, `drone-lora-relay` CLI): broadcasts/receives compact detection events between nodes over a Meshtastic radio, with a bit-packed binary codec and a `DetectionThrottle` for duty-cycle limits.
+- LoRa→RabbitMQ bridge (`drone_tools/lora_to_queue.py`, `drone-lora-to-queue` CLI): gateway nodes republish mesh detections to the central RabbitMQ exchange.
+- Detection emit layer (`drone_tools/detection_emit.py`, `drone-emit-test` CLI): config-driven sink fan-out (`RabbitMQSink`/`LoRaSink`/`StdoutSink`) with per-sink failure isolation; every detector gained `--emit-config`. `[emit]` config validation with human-readable errors and optional `dedup_interval` duplicate suppression.
 - Drone reference DB: `drone-db seed` (bundled `known_drones.json` catalog), `drone-db import` (JSON/CSV), and `drone-db identify` to match a Remote ID serial to a catalog entry. New `classify()` API plus a `manufacturer_code` (CTA-2063-A) column with automatic migration of existing databases.
 - Detection enrichment: detectors can attach manufacturer/model from the reference DB before publishing, enabled per node via `[emit] classify`/`classify_db`. `DetectionEvent` gained local-only `manufacturer`/`model` fields (not put on the LoRa wire).
 - Vision tools: `drone-describe-image` adds `--model`, `--max-tokens`, structured `classify_drone()`, and `--emit-config` to publish a `VISION` detection; `drone-image-query` adds `--model`/`--size`/`--n` with an explicit default model. New `VISION` detector type.
-- Coverage floor enforced in CI (`pytest --cov-fail-under=65`).
-- CI workflow (`.github/workflows/ci.yml`) running ruff, ruff format check, mypy, and pytest on Python 3.10–3.12.
+- Coverage floor enforced in CI (`pytest --cov-fail-under=80`).
+- Sink-layer and radio-layer tests: `RabbitMQSink` lifecycle, `LoRaSink`, `MeshLink` connect/broadcast/receive, and both `drone-emit-test` and `drone-lora-relay` CLIs (`detection_emit` 57%→97%, `drone_lora` 61%→96% coverage).
+- End-to-end Wi-Fi Remote ID tests with real scapy beacon frames: the packet handler, Basic ID + Location/Vector combining, BPF-filter fallback in `capture_remote_id`, and the CLI (66%→98% coverage).
+- CI workflow (`.github/workflows/ci.yml`) running ruff, ruff format check, mypy, and pytest on Python 3.10–3.14, including the kismet-queuer suite.
 - Tool configuration in `pyproject.toml`: `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`.
 - Unit tests for `drone_ble_remote_id` (16 tests) and `mock_sniffle_remote_id` (17 tests).
 - `ansible/inventory.ini.example` template; real `inventory.ini` is now gitignored.
@@ -17,11 +22,13 @@
 
 ### Changed
 - RabbitMQ publishing consolidated into a shared `drone_tools/amqp.py` (`AmqpPublisher`, `build_amqp_url`) reused by `RabbitMQSink` and the LoRa→RabbitMQ bridge. The standalone `kismet-queuer` app keeps its own copy by design.
+- Remaining diagnostic `print()` calls in `drone_rf_detection`, `rtl_power_visualization`, and `image_query` migrated to `logging`. Command output (results, URLs, `drone-db` listings, the mock-sniffle stream) intentionally stays on stdout.
 - `MockSniffle` arguments now use explicit `Optional` types (PEP 484).
 - Whole repo reformatted with `ruff format`; unused imports removed.
 
 ### Fixed
 - `dev` extra now includes `aio-pika`, so the `AmqpPublisher` tests run in CI instead of silently skipping.
+- Test mocks of `asyncio.run` now consume the coroutine, fixing "coroutine was never awaited" warnings; the warning is an error in pytest config so it can't regress.
 - `drone_description` no longer crashes on empty Vision API responses.
 - `drone_rf_detection` re-raises `argparse.ArgumentTypeError` with `from` chaining.
 

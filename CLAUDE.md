@@ -165,15 +165,15 @@ All tools are registered as console scripts in `pyproject.toml` with `drone-*` p
 
 ### Test Suite
 
-Tests live in `tests/` with shared fixtures in `conftest.py`. Coverage target is 65% (CI enforced). Modules covered:
+Tests live in `tests/` with shared fixtures in `conftest.py`. Coverage target is 80% (CI enforced). Modules covered:
 
 - `test_drone_audio_detection.py`, `test_drone_audio_monitor.py`
 - `test_drone_description.py`, `test_image_query.py`
 - `test_drone_rf_detection.py`, `test_drone_rtl_power_detection.py`, `test_drone_rtl_power_visualization.py`
 - `test_drone_wifi_remote_id.py`, `test_drone_ble_remote_id.py`
-- `test_drone_lora.py`, `test_lora_to_queue.py`
+- `test_drone_lora.py`, `test_drone_lora_link.py`, `test_lora_to_queue.py`
 - `test_drone_db.py`, `test_drone_db_extras.py`
-- `test_detection_emit.py`, `test_detector_emit_wiring.py`
+- `test_detection_emit.py`, `test_detection_emit_sinks.py`, `test_detector_emit_wiring.py`
 - `test_amqp.py`, `test_mock_sniffle_remote_id.py`
 
 The kismet-queuer app has its own tests in `kismet-queuer/tests/`.

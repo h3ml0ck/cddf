@@ -157,10 +157,10 @@ def test_main_success_writes_png(tmp_path):
     assert png.exists()
 
 
-def test_main_empty_file_returns_one(tmp_path, capsys):
+def test_main_empty_file_returns_one(tmp_path, caplog):
     csv = tmp_path / "empty.csv"
     _write_csv(csv, [])
-    ret = viz.main([str(csv)])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = viz.main([str(csv)])
     assert ret == 1
-    assert "No rtl_power data found" in captured.out
+    assert "No rtl_power data found" in caplog.text

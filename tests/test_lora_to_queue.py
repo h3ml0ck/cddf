@@ -207,6 +207,11 @@ def test_main_keyboard_interrupt(tmp_path, monkeypatch):
     cfg_path = _write_config(tmp_path, _VALID_CONFIG)
     monkeypatch.setattr("drone_tools.lora_to_queue.AIO_PIKA_AVAILABLE", True)
     monkeypatch.setattr("drone_tools.lora_to_queue.MESHTASTIC_AVAILABLE", True)
-    monkeypatch.setattr("asyncio.run", MagicMock(side_effect=KeyboardInterrupt))
+
+    def fake_run(coro):
+        coro.close()  # consume the coroutine so no "never awaited" warning leaks
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("asyncio.run", fake_run)
     ret = main(["--config", cfg_path])
     assert ret == 0

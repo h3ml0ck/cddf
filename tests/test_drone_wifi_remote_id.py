@@ -270,3 +270,207 @@ def test_main_no_scapy(monkeypatch):
     # capture_remote_id will raise RuntimeError
     ret = wifi.main(["wlan0", "--timeout", "0.01"])
     assert ret == 1
+
+
+# -------------------------------------------------------
+# process_packet with real scapy beacon frames
+# -------------------------------------------------------
+
+
+class _Recorder:
+    def __init__(self):
+        self.events = []
+
+    def start(self):
+        return self
+
+    def emit(self, event):
+        self.events.append(event)
+
+    def close(self):
+        return None
+
+
+def _recording_emitter():
+    from drone_tools.detection_emit import DetectionEmitter
+
+    recorder = _Recorder()
+    return DetectionEmitter([recorder]), recorder
+
+
+def _beacon(*vendor_payloads: bytes, rssi: int | None = None):
+    """Build a real scapy beacon frame carrying the given vendor IEs."""
+    from scapy.all import Dot11, Dot11Beacon, Dot11Elt, RadioTap
+
+    frame = Dot11(type=0, subtype=8, addr1="ff:ff:ff:ff:ff:ff", addr2="90:3a:e6:11:22:33", addr3="90:3a:e6:11:22:33")
+    frame /= Dot11Beacon(cap="ESS")
+    frame /= Dot11Elt(ID=0, info=b"drone-net")  # SSID element before the vendor IEs
+    for payload in vendor_payloads:
+        frame /= Dot11Elt(ID=221, info=payload)
+    if rssi is not None:
+        return RadioTap(present="dBm_AntSignal", dBm_AntSignal=rssi) / frame
+    return RadioTap() / frame
+
+
+def test_process_packet_combines_basic_id_and_location():
+    emitter, recorder = _recording_emitter()
+    packet = _beacon(
+        _make_basic_id_element(ua_type=4, id_type=1, uas_id="1581F4ABC"),
+        _make_location_element(lat=37.7749, lon=-122.4194, alt=120.0),
+        rssi=-58,
+    )
+    wifi.process_packet(packet, emitter)
+
+    assert len(recorder.events) == 1
+    event = recorder.events[0]
+    assert event.drone_id == "1581F4ABC"
+    assert event.lat == pytest.approx(37.7749, abs=1e-4)
+    assert event.lon == pytest.approx(-122.4194, abs=1e-4)
+    assert event.altitude == 120
+    assert event.rssi == -58
+
+
+def test_process_packet_without_emitter_only_logs(caplog):
+    packet = _beacon(_make_basic_id_element(ua_type=2, id_type=1, uas_id="SN-1"))
+    with caplog.at_level("INFO"):
+        wifi.process_packet(packet)
+    assert "Basic ID" in caplog.text
+    assert "SN-1" in caplog.text
+
+
+def test_process_packet_skips_foreign_vendor_elements():
+    emitter, recorder = _recording_emitter()
+    packet = _beacon(b"\x00\x11\x22\x01" + b"\x00" * 20)  # non-ASTM OUI
+    wifi.process_packet(packet, emitter)
+    assert recorder.events == []
+
+
+def test_process_packet_no_event_without_identity_or_location():
+    emitter, recorder = _recording_emitter()
+    packet = _beacon(_make_self_id_element(desc_type=0, description="camera survey"))
+    wifi.process_packet(packet, emitter)
+    assert recorder.events == []  # Self ID alone shouldn't produce an event
+
+
+# -------------------------------------------------------
+# defensive parse branches
+# -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "parser,error_label",
+    [
+        (wifi.parse_basic_id, "Basic ID"),
+        (wifi.parse_location_vector, "Location/Vector"),
+        (wifi.parse_self_id, "Self ID"),
+        (wifi.parse_operator_id, "Operator ID"),
+    ],
+)
+def test_parsers_report_error_on_garbage(parser, error_label):
+    # None is not bytes; every parser catches and reports rather than raising.
+    result = parser(None)
+    assert result["parse_error"] == f"Failed to parse {error_label}"
+
+
+def test_packet_rssi_swallows_layer_errors():
+    pkt = MagicMock()
+    pkt.haslayer.side_effect = RuntimeError("mangled header")
+    assert wifi._packet_rssi(pkt) is None
+
+
+# -------------------------------------------------------
+# capture_remote_id (sniff mocked)
+# -------------------------------------------------------
+
+
+def test_capture_requires_scapy(monkeypatch):
+    monkeypatch.setattr(wifi, "SCAPY_AVAILABLE", False)
+    with pytest.raises(RuntimeError, match="scapy is required"):
+        wifi.capture_remote_id("wlan0")
+
+
+def test_capture_uses_bpf_filter(monkeypatch):
+    calls = []
+    monkeypatch.setattr(wifi, "sniff", lambda **kw: calls.append(kw))
+    wifi.capture_remote_id("wlan0", timeout=0.1)
+    assert len(calls) == 1
+    assert calls[0]["filter"] == "type mgt subtype beacon"
+    assert calls[0]["iface"] == "wlan0"
+    # The prn handed to sniff forwards packets into process_packet.
+    calls[0]["prn"](_beacon(_make_basic_id_element(ua_type=1, id_type=1, uas_id="P")))
+
+
+def test_capture_filter_failure_falls_back_to_manual(monkeypatch):
+    calls = []
+
+    def fake_sniff(**kw):
+        calls.append(kw)
+        if "filter" in kw:
+            raise OSError("BPF not supported")
+
+    monkeypatch.setattr(wifi, "sniff", fake_sniff)
+    wifi.capture_remote_id("wlan0", timeout=0.1)
+    assert len(calls) == 2
+    assert "filter" not in calls[1]
+    # The fallback prn only forwards beacons to process_packet.
+    prn = calls[1]["prn"]
+    emitterless_beacon = _beacon(_make_basic_id_element(ua_type=1, id_type=1, uas_id="X"))
+    prn(emitterless_beacon)  # must not raise
+
+
+def test_capture_no_filter_forwards_beacons(monkeypatch):
+    emitter, recorder = _recording_emitter()
+    packet = _beacon(
+        _make_basic_id_element(ua_type=4, id_type=1, uas_id="NF-1"),
+        rssi=-70,
+    )
+    monkeypatch.setattr(wifi, "sniff", lambda **kw: kw["prn"](packet))
+    wifi.capture_remote_id("wlan0", use_filter=False, emitter=emitter)
+    assert len(recorder.events) == 1
+    assert recorder.events[0].drone_id == "NF-1"
+
+
+def test_capture_swallows_keyboard_interrupt(monkeypatch):
+    def fake_sniff(**kw):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(wifi, "sniff", fake_sniff)
+    wifi.capture_remote_id("wlan0")  # must not raise
+
+
+def test_capture_reraises_other_errors(monkeypatch):
+    def fake_sniff(**kw):
+        raise PermissionError("need root for monitor mode")
+
+    monkeypatch.setattr(wifi, "sniff", fake_sniff)
+    with pytest.raises(PermissionError):
+        wifi.capture_remote_id("wlan0", use_filter=False)
+
+
+# -------------------------------------------------------
+# main CLI (capture mocked)
+# -------------------------------------------------------
+
+
+def test_main_success(monkeypatch):
+    monkeypatch.setattr(wifi, "capture_remote_id", lambda *a, **kw: None)
+    assert wifi.main(["wlan0", "--monitor-mode"]) == 0
+
+
+def test_main_closes_emitter(tmp_path, monkeypatch):
+    cfg = tmp_path / "emit.ini"
+    cfg.write_text("[emit]\nsinks = stdout\n")
+    monkeypatch.setattr(wifi, "capture_remote_id", lambda *a, **kw: None)
+    assert wifi.main(["wlan0", "--emit-config", str(cfg)]) == 0
+
+
+def test_main_bad_emit_config_returns_1(tmp_path):
+    assert wifi.main(["wlan0", "--emit-config", str(tmp_path / "nope.ini")]) == 1
+
+
+def test_main_capture_failure_returns_1(monkeypatch):
+    def explode(*a, **kw):
+        raise PermissionError("need root")
+
+    monkeypatch.setattr(wifi, "capture_remote_id", explode)
+    assert wifi.main(["wlan0", "--no-filter"]) == 1

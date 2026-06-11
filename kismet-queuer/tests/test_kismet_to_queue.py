@@ -182,5 +182,10 @@ def test_max_message_size_constant():
 def test_main_calls_asyncio_run(tmp_path, monkeypatch):
     cfg_path = _write_config(tmp_path, _VALID_CONFIG)
     monkeypatch.setattr(sys, "argv", ["kismet_to_queue", cfg_path])
-    with patch("asyncio.run", side_effect=KeyboardInterrupt):
+
+    def fake_run(coro):
+        coro.close()  # consume the coroutine so no "never awaited" warning leaks
+        raise KeyboardInterrupt
+
+    with patch("asyncio.run", side_effect=fake_run):
         ktq.main()  # should not raise

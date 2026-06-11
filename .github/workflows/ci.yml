@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -43,4 +43,10 @@ jobs:
         run: mypy drone_tools
 
       - name: Pytest
-        run: pytest --cov=drone_tools --cov-report=term-missing --cov-fail-under=65
+        run: pytest --cov=drone_tools --cov-report=term-missing --cov-fail-under=80
+
+      - name: Install kismet-queuer dependencies
+        run: pip install -r kismet-queuer/src/requirements.txt
+
+      - name: Pytest (kismet-queuer)
+        run: pytest kismet-queuer/tests
