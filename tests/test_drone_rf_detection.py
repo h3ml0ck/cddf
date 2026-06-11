@@ -212,12 +212,12 @@ def test_detect_validation_errors_when_no_lib_or_bad_inputs(monkeypatch):
 # ---------------------------
 
 
-def test_main_list_devices_when_library_missing(monkeypatch, capsys):
+def test_main_list_devices_when_library_missing(monkeypatch, caplog):
     monkeypatch.setattr(rf, "HackRf", None)
-    ret = rf.main(["--list-devices"])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = rf.main(["--list-devices"])
     assert ret == 1
-    assert "HackRF library not available" in captured.err or "HackRF library not available" in captured.out
+    assert "HackRF library not available" in caplog.text
 
 
 def test_main_list_devices_success(monkeypatch, capsys):

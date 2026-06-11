@@ -19,6 +19,7 @@
 
 ### Changed
 - RabbitMQ publishing consolidated into a shared `drone_tools/amqp.py` (`AmqpPublisher`, `build_amqp_url`) reused by `RabbitMQSink` and the LoRa→RabbitMQ bridge. The standalone `kismet-queuer` app keeps its own copy by design.
+- Remaining diagnostic `print()` calls in `drone_rf_detection`, `rtl_power_visualization`, and `image_query` migrated to `logging`. Command output (results, URLs, `drone-db` listings, the mock-sniffle stream) intentionally stays on stdout.
 - `MockSniffle` arguments now use explicit `Optional` types (PEP 484).
 - Whole repo reformatted with `ruff format`; unused imports removed.
 

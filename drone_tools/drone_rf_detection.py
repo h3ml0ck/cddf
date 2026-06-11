@@ -209,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
     # --list-devices (best-effort; pyhackrf may not expose multiple devices list)
     if args.list_devices:
         if HackRf is None:
-            print("HackRF library not available.", file=sys.stderr)
+            logging.error("HackRF library not available.")
             return 1
         try:
             with HackRf():
@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("Tip: ensure udev/driver permissions are configured.")
             return 0
         except Exception as e:  # Hardware dependent
-            print(f"Failed to open HackRF device: {e}", file=sys.stderr)
+            logging.error("Failed to open HackRF device: %s", e)
             return 1
 
     # Defaults if not provided

@@ -100,7 +100,7 @@ def test_main_success_prints_urls(capsys, monkeypatch):
     assert _fake_capture["kwargs"]["prompt"] == "a cool drone"
 
 
-def test_main_error_returns_1(capsys, monkeypatch):
+def test_main_error_returns_1(caplog, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
     def _boom(**kwargs):
@@ -113,7 +113,7 @@ def test_main_error_returns_1(capsys, monkeypatch):
 
     monkeypatch.setattr(iq.openai, "OpenAI", _factory)
 
-    ret = iq.main(["test prompt"])
-    captured = capsys.readouterr()
+    with caplog.at_level("ERROR"):
+        ret = iq.main(["test prompt"])
     assert ret == 1
-    assert "api down" in captured.err
+    assert "api down" in caplog.text

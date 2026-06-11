@@ -1,8 +1,11 @@
 import argparse
+import logging
 import os
 import sys
 
 import openai
+
+logger = logging.getLogger(__name__)
 
 # Named explicitly so an OpenAI default change can't silently swap the model.
 DEFAULT_MODEL = "dall-e-3"
@@ -39,6 +42,8 @@ def main(argv=None):
     parser.add_argument("--n", type=int, default=1, help="Number of images to generate")
     args = parser.parse_args(argv)
 
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     if not args.prompt:
         print("Usage: drone-image-query [--model M] [--size WxH] [--n N] <prompt>")
         return 1
@@ -47,7 +52,7 @@ def main(argv=None):
     try:
         urls = query_image(prompt, n=args.n, size=args.size, model=args.model)
     except Exception as exc:
-        print(f"Error querying image: {exc}", file=sys.stderr)
+        logger.error("Error querying image: %s", exc)
         return 1
     for url in urls:
         print(url)

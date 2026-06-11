@@ -17,11 +17,13 @@ window.
 from __future__ import annotations
 
 import argparse
-import sys
+import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 _ALLOWED_OUTPUT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf", ".svg"}
 
@@ -103,16 +105,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("file", help="rtl_power output file to visualize")
     parser.add_argument("-o", "--output", help="Path to save the plot (default: display it)")
     args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
         _validate_input_path(args.file)
         if args.output:
             _validate_output_path(args.output)
     except ValueError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        logger.error("Error: %s", exc)
         return 1
     freqs, times, power = read_rtl_power_csv(args.file)
     if freqs.size == 0:
-        print("No rtl_power data found", flush=True)
+        logger.error("No rtl_power data found")
         return 1
     plot_heatmap(freqs, times, power, args.output)
     return 0
