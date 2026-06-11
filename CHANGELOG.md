@@ -7,6 +7,7 @@
 - Vision tools: `drone-describe-image` adds `--model`, `--max-tokens`, structured `classify_drone()`, and `--emit-config` to publish a `VISION` detection; `drone-image-query` adds `--model`/`--size`/`--n` with an explicit default model. New `VISION` detector type.
 - Coverage floor enforced in CI (`pytest --cov-fail-under=80`).
 - Sink-layer and radio-layer tests: `RabbitMQSink` lifecycle, `LoRaSink`, `MeshLink` connect/broadcast/receive, and both `drone-emit-test` and `drone-lora-relay` CLIs (`detection_emit` 57%→97%, `drone_lora` 61%→96% coverage).
+- End-to-end Wi-Fi Remote ID tests with real scapy beacon frames: the packet handler, Basic ID + Location/Vector combining, BPF-filter fallback in `capture_remote_id`, and the CLI (66%→98% coverage).
 - CI workflow (`.github/workflows/ci.yml`) running ruff, ruff format check, mypy, and pytest on Python 3.10–3.14.
 - Tool configuration in `pyproject.toml`: `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`.
 - Unit tests for `drone_ble_remote_id` (16 tests) and `mock_sniffle_remote_id` (17 tests).
