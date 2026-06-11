@@ -21,6 +21,7 @@
 - Whole repo reformatted with `ruff format`; unused imports removed.
 
 ### Fixed
+- `dev` extra now includes `aio-pika`, so the `AmqpPublisher` tests run in CI instead of silently skipping.
 - `drone_description` no longer crashes on empty Vision API responses.
 - `drone_rf_detection` re-raises `argparse.ArgumentTypeError` with `from` chaining.
 

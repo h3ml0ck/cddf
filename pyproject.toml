@@ -24,7 +24,7 @@ hackrf = ["hackrf"]
 amqp = ["aio-pika>=9.0.0"]
 lora = ["meshtastic>=2.0.0"]
 lora-bridge = ["meshtastic>=2.0.0", "aio-pika>=9.0.0"]
-dev = ["pytest", "pytest-cov", "ruff", "mypy", "types-requests", "types-setuptools"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "types-requests", "types-setuptools", "aio-pika>=9.0.0"]
 
 # Console commands (optional; remove if you don’t want these)
 [project.scripts]
