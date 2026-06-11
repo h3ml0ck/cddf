@@ -96,3 +96,6 @@ disable_error_code = ["call-overload"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra"
+filterwarnings = [
+  "error:coroutine .* was never awaited:RuntimeWarning",
+]
